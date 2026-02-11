@@ -22,14 +22,17 @@
 
 ### 2. GitHub Secrets 등록
 
-저장소의 **Settings > Secrets and variables > Actions**에서 다음 Secrets를 등록합니다:
+저장소의 **Settings > Secrets and variables > Actions**에서 `KIS_KEY_JSON` Secret을 등록합니다.
+값은 `key.json`과 동일한 형식의 JSON 문자열입니다:
 
-| Secret | 설명 |
-|--------|------|
-| `KIS_APP_KEY` | KIS API 앱 키 |
-| `KIS_APP_SECRET` | KIS API 앱 시크릿 |
-| `KIS_ACCOUNT_NUMBER` | 계좌번호 |
-| `KIS_ACCOUNT_CODE` | 계좌 상품코드 |
+```json
+{
+  "app_key": "YOUR_APP_KEY",
+  "app_secret": "YOUR_APP_SECRET",
+  "account_number": "YOUR_ACCOUNT_NUMBER",
+  "account_code": "YOUR_ACCOUNT_CODE"
+}
+```
 
 ### 3. Workflow 권한 설정
 

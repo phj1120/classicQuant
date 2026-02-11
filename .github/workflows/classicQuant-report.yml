@@ -14,11 +14,6 @@ jobs:
   report:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
-      KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
-      KIS_ACCOUNT_NUMBER: ${{ secrets.KIS_ACCOUNT_NUMBER }}
-      KIS_ACCOUNT_CODE: ${{ secrets.KIS_ACCOUNT_CODE }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,12 +28,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests
 
-      - name: Validate secrets
+      - name: Write key.json
         run: |
-          if [ -z "$KIS_APP_KEY" ] || [ -z "$KIS_APP_SECRET" ] || [ -z "$KIS_ACCOUNT_NUMBER" ] || [ -z "$KIS_ACCOUNT_CODE" ]; then
-            echo "Missing required secrets: KIS_APP_KEY, KIS_APP_SECRET, KIS_ACCOUNT_NUMBER, KIS_ACCOUNT_CODE"
+          if [ -z '${{ secrets.KIS_KEY_JSON }}' ]; then
+            echo "Missing required secret: KIS_KEY_JSON"
             exit 1
           fi
+          echo '${{ secrets.KIS_KEY_JSON }}' > key.json
 
       - name: Generate report
         run: python run_rebalance.py --report-only
