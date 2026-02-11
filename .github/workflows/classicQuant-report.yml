@@ -14,9 +14,36 @@ jobs:
   report:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      DATA_BRANCH: "trading"
     steps:
-      - name: Checkout
+      - name: Checkout trading branch
         uses: actions/checkout@v4
+        with:
+          ref: trading
+          fetch-depth: 0
+        continue-on-error: true
+        id: checkout-trading
+
+      - name: Init trading branch from main
+        if: steps.checkout-trading.outcome == 'failure'
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Create trading branch
+        if: steps.checkout-trading.outcome == 'failure'
+        run: |
+          git checkout -b trading
+          git push origin trading
+
+      - name: Rebase trading onto main
+        if: steps.checkout-trading.outcome == 'success'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git rebase origin/main
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -36,18 +63,22 @@ jobs:
           fi
           echo '${{ secrets.KIS_KEY_JSON }}' > key.json
 
+      - name: Apply custom config
+        if: ${{ secrets.CONFIG_JSON != '' }}
+        run: echo '${{ secrets.CONFIG_JSON }}' > config.json
+
       - name: Generate report
         run: python run_rebalance.py --report-only
 
-      - name: Commit report
+      - name: Commit & push
         run: |
           set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add reports
-          if git diff --cached --quiet -- reports; then
+          if git diff --cached --quiet; then
             echo "No report changes"
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           git commit -m "chore: manual report $(date -u +%Y-%m-%d)"
-          git push
+          git push origin trading --force-with-lease

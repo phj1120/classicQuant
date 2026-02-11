@@ -1,29 +1,23 @@
 # classicQuant
 
-모멘텀 기반 퀀트 전략(DAA, VAA)을 동시에 운용하며, GitHub Actions로 매일 자동 리밸런싱을 수행합니다.
-한국투자증권 KIS API를 통해 미국 ETF를 자동 매매합니다.
-
-## 주요 기능
-
-- GitHub Actions 기반 완전 자동 리밸런싱 (평일 매일 실행)
-- DAA / VAA 전략 동시 운용 (비중 조절 가능)
-- 모멘텀 스코어 기반 자동 종목 선정
-- 예비자산 자동 폴백 및 승격
-- 일별 리포트 자동 생성 및 커밋
+모멘텀 기반 퀀트 전략(DAA, VAA)을 GitHub Actions로 자동 운용합니다.
+Fork 후 API 키만 등록하면 매일 자동으로 리밸런싱이 실행됩니다.
 
 > 전략 상세 설명은 [docs/STRATEGY.md](docs/STRATEGY.md)를 참고하세요.
 
-## 설정 방법
+## Fork & 시작하기
 
-### 1. 사전 준비
+### 1. 이 저장소를 Fork
 
-- [한국투자증권 KIS API](https://apiportal.koreainvestment.com/) 앱 키 발급
-- 이 저장소를 Fork 또는 본인 계정에 복제
+우측 상단 **Fork** 버튼을 클릭합니다.
 
-### 2. GitHub Secrets 등록
+### 2. KIS API 키 발급
 
-저장소의 **Settings > Secrets and variables > Actions**에서 `KIS_KEY_JSON` Secret을 등록합니다.
-값은 `key.json`과 동일한 형식의 JSON 문자열입니다:
+[한국투자증권 KIS API 포털](https://apiportal.koreainvestment.com/)에서 앱 키를 발급받습니다.
+
+### 3. GitHub Secret 등록
+
+Fork한 저장소의 **Settings > Secrets and variables > Actions**에서 `KIS_KEY_JSON` Secret을 등록합니다.
 
 ```json
 {
@@ -34,20 +28,27 @@
 }
 ```
 
-### 3. Workflow 권한 설정
+### 4. Workflow 권한 설정
 
 **Settings > Actions > General > Workflow permissions**에서 **Read and write permissions**를 활성화합니다.
-(리포트/데이터 자동 커밋에 필요)
 
-### 4. 전략 설정 (선택)
+### 5. 완료
 
-`config.json`에서 전략 비중과 매매 파라미터를 조정할 수 있습니다. 기본값으로도 바로 사용 가능합니다.
+설정이 끝나면 평일 15:30 UTC (한국시간 00:30)에 자동으로 리밸런싱이 실행됩니다.
+바로 테스트하려면 Actions 탭에서 수동 실행(`Run workflow`)할 수 있습니다.
+
+## 전략 설정 (선택)
+
+기본값(DAA 50% + VAA 50%)으로도 바로 사용 가능합니다.
+전략 비중이나 매매 파라미터를 바꾸고 싶다면 `CONFIG_JSON` Secret을 등록하세요.
+
+**Settings > Secrets and variables > Actions**에서 `CONFIG_JSON` Secret에 원하는 설정을 입력합니다:
 
 ```json
 {
   "strategies": [
-    { "name": "daa", "weight": 0.5 },
-    { "name": "vaa", "weight": 0.5 }
+    { "name": "daa", "weight": 0.7 },
+    { "name": "vaa", "weight": 0.3 }
   ],
   "strategy": {
     "rebalance_threshold_pct": 0.05,
@@ -63,31 +64,45 @@
 | `cash_buffer_pct` | 현금 보유 비율 (0.0 = 전액 투자) |
 | `min_trade_value_usd` | 최소 매매 금액 (USD) |
 
-## GitHub Actions (메인 운용 방식)
+> Secret이 없으면 저장소의 기본 `config.json`이 사용됩니다.
+> Secret으로 관리하면 Sync fork로 소스를 업데이트해도 개인 설정이 유지됩니다.
+
+## GitHub Actions
 
 ### 자동 리밸런싱 (`classicQuant.yml`)
 - 평일 15:30 UTC (한국시간 00:30) 자동 실행
-- 매매 실행 + 리포트 생성 + 데이터 자동 커밋
+- 매매 실행 + 리포트 생성 + 데이터 커밋
 - 최대 5회 재시도
 
 ### 리포트 전용 (`classicQuant-report.yml`)
-- 수동 실행 전용 (Actions 탭 > "ClassicQuant Report Only" > "Run workflow")
+- Actions 탭 > "ClassicQuant Report Only" > "Run workflow"로 수동 실행
 - 매매 없이 모멘텀 분석 리포트만 생성
 
-리포트는 `reports/YYYY-MM-DD.md`에 자동 저장됩니다.
+### 브랜치 구조
+
+`trading` 브랜치는 첫 워크플로우 실행 시 자동 생성됩니다.
+매 실행마다 `main`을 리베이스하여 최신 소스를 반영한 뒤, 운용 결과를 커밋합니다.
+
+| 브랜치 | 용도 |
+|--------|------|
+| `main` | 소스 코드, 설정, 워크플로우 |
+| `trading` | `main` + 일별 리포트(`reports/`), CSV 데이터(`data/`) |
+
+```
+main:       A ── B ── C (소스 업데이트)
+                       \
+trading:                C ── report-0211 ── report-0212 ── ...
+```
+
+원본 저장소의 소스가 업데이트되면 **Sync fork** → 다음 워크플로우 실행 시 자동 반영됩니다.
 
 ## 로컬 실행 (테스트용)
 
-로컬에서 직접 실행하여 동작을 확인할 수도 있습니다.
+로컬에서 직접 동작을 확인할 수도 있습니다.
 
 ```bash
 pip install requests
-```
-
-`key.json.example`을 복사하여 `key.json`을 생성하고 API 정보를 입력합니다.
-
-```bash
-cp key.json.example key.json
+cp key.json.example key.json   # API 정보 입력
 ```
 
 ```bash
@@ -113,8 +128,6 @@ classicQuant/
 │   ├── momentum.py       # 모멘텀 스코어 계산
 │   ├── portfolio.py      # 포트폴리오 주문 생성/실행
 │   └── report.py         # 리포트 생성
-├── data/                 # CSV 로그 데이터
-├── reports/              # 일별 리포트
 ├── config.json           # 전략 설정
 ├── key.json.example      # API 키 템플릿
 └── run_rebalance.py      # 실행 엔트리포인트
@@ -123,5 +136,5 @@ classicQuant/
 ## 주의사항
 
 - **실거래 주문이 발생합니다.** 충분히 검증 후 실행하세요.
-- 로컬 테스트 시 `--report-only`로 먼저 확인하는 것을 권장합니다.
+- 처음 사용 시 `--report-only` 또는 리포트 전용 워크플로우로 먼저 확인하는 것을 권장합니다.
 - 새 전략 추가 방법은 [docs/STRATEGY.md](docs/STRATEGY.md#새-전략-추가하기)를 참고하세요.
