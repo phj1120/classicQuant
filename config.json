@@ -1,0 +1,11 @@
+{
+  "strategies": [
+    { "name": "daa", "weight": 0.5 },
+    { "name": "vaa", "weight": 0.5 }
+  ],
+  "strategy": {
+    "rebalance_threshold_pct": 0.05,
+    "cash_buffer_pct": 0.0,
+    "min_trade_value_usd": 5.0
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "offensive": {
+    "SPY": [
+      { "ticker": "SPY", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "SPYM", "exchange_code": "AMEX", "priority": 2 }
+    ],
+    "IWM": [
+      { "ticker": "IWM", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "IJR", "exchange_code": "AMEX", "priority": 2 }
+    ],
+    "QQQ": [
+      { "ticker": "QQQ", "exchange_code": "NASD", "priority": 1 },
+      { "ticker": "QQQM", "exchange_code": "NASD", "priority": 2 }
+    ],
+    "VGK": [
+      { "ticker": "VGK", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "IEV", "exchange_code": "AMEX", "priority": 2 }
+    ],
+    "EWJ": [
+      { "ticker": "EWJ", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "HEWJ", "exchange_code": "AMEX", "priority": 2 }
+    ],
+    "EEM": [
+      { "ticker": "EEM", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "IEMG", "exchange_code": "AMEX", "priority": 2 }
+    ],
+    "VNQ": [
+      { "ticker": "VNQ", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "SCHH", "exchange_code": "AMEX", "priority": 2 }
+    ],
+    "DBC": [
+      { "ticker": "DBC", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "PDBC", "exchange_code": "NASD", "priority": 2 }
+    ],
+    "GLD": [
+      { "ticker": "GLD", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "GLDM", "exchange_code": "AMEX", "priority": 2 }
+    ],
+    "TLT": [
+      { "ticker": "TLT", "exchange_code": "NASD", "priority": 1 },
+      { "ticker": "EDV", "exchange_code": "AMEX", "priority": 2 }
+    ],
+    "HYG": [
+      { "ticker": "HYG", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "JNK", "exchange_code": "AMEX", "priority": 2 }
+    ],
+    "LQD": [
+      { "ticker": "LQD", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "VCIT", "exchange_code": "NASD", "priority": 2 }
+    ]
+  },
+  "defensive": {
+    "SHY": [
+      { "ticker": "SHY", "exchange_code": "NASD", "priority": 1 }
+    ],
+    "IEF": [
+      { "ticker": "IEF", "exchange_code": "NASD", "priority": 1 }
+    ],
+    "LQD": [
+      { "ticker": "LQD", "exchange_code": "AMEX", "priority": 1 }
+    ]
+  },
+  "canary": {
+    "VWO": [
+      { "ticker": "VWO", "exchange_code": "AMEX", "priority": 1 }
+    ],
+    "BND": [
+      { "ticker": "BND", "exchange_code": "NASD", "priority": 1 }
+    ]
+  }
+}

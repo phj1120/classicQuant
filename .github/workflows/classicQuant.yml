@@ -1,0 +1,72 @@
+name: ClassicQuant Daily Rebalance
+
+on:
+  schedule:
+    # 15:30 UTC daily (Mon-Fri)
+    - cron: "30 15 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: classicquant-rebalance
+  cancel-in-progress: false
+
+jobs:
+  rebalance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
+      KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
+      KIS_ACCOUNT_NUMBER: ${{ secrets.KIS_ACCOUNT_NUMBER }}
+      KIS_ACCOUNT_CODE: ${{ secrets.KIS_ACCOUNT_CODE }}
+      LOG_DIR: "logs"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Validate secrets
+        run: |
+          if [ -z "$KIS_APP_KEY" ] || [ -z "$KIS_APP_SECRET" ] || [ -z "$KIS_ACCOUNT_NUMBER" ] || [ -z "$KIS_ACCOUNT_CODE" ]; then
+            echo "Missing required secrets: KIS_APP_KEY, KIS_APP_SECRET, KIS_ACCOUNT_NUMBER, KIS_ACCOUNT_CODE"
+            exit 1
+          fi
+
+      - name: Run rebalance
+        run: |
+          set -euo pipefail
+          mkdir -p "$LOG_DIR"
+          LOG_FILE="$LOG_DIR/$(date -u +%Y%m%dT%H%M%SZ).log"
+          for i in 1 2 3 4 5; do
+            echo "Attempt $i/5"
+            if python run_rebalance.py | tee "$LOG_FILE"; then
+              exit 0
+            fi
+            sleep 30
+          done
+          exit 1
+
+      - name: Commit report & data
+        run: |
+          set -euo pipefail
+          git add reports data
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: daily report $(date -u +%Y-%m-%d)"
+          git push
