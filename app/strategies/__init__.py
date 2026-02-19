@@ -25,3 +25,10 @@ def get_strategy(name: str, assets_file: Path | None = None) -> BaseStrategy:
 # 전략 모듈을 임포트하여 @register 데코레이터가 실행되도록 한다.
 from app.strategies import daa as _daa  # noqa: F401, E402
 from app.strategies import vaa as _vaa  # noqa: F401, E402
+from app.strategies import paa as _paa  # noqa: F401, E402
+from app.strategies import baa_g12 as _baa_g12  # noqa: F401, E402
+from app.strategies import baa_g4 as _baa_g4  # noqa: F401, E402
+from app.strategies import gem as _gem  # noqa: F401, E402
+from app.strategies import haa as _haa  # noqa: F401, E402
+from app.strategies import permanent as _permanent  # noqa: F401, E402
+from app.strategies import all_weather as _all_weather  # noqa: F401, E402

@@ -1,9 +1,27 @@
 # classicQuant
 
-모멘텀 기반 퀀트 전략(DAA, VAA)을 GitHub Actions로 자동 운용합니다.
-Fork 후 API 키만 등록하면 매일 자동으로 리밸런싱이 실행됩니다.
+9개 근본 퀀트 전략을 매일 추적하고, 현재 시장 상황에 따라 조건을 만족하는 전략만 선택해 자동 리밸런싱합니다.
+GitHub Actions로 운용되며, Fork 후 API 키만 등록하면 바로 사용할 수 있습니다.
 
 > 전략 상세 설명은 [docs/STRATEGY.md](docs/STRATEGY.md)를 참고하세요.
+
+## 동작 방식
+
+```
+[최초 1회] run_backfill.py
+    전체 자산 과거 가격 수집 (KIS API, 최대 5년)
+    → 9개 전략 NAV 곡선 과거분 일괄 생성
+
+[매일] run_collect.py  (GitHub Actions)
+    전략 신호 계산 (잔고 조회 없음)
+    → data/strategy_signals.csv  (오늘 포지션)
+    → data/strategy_nav.csv      (NAV 누적)
+
+[월별] run_rebalance.py  (GitHub Actions)
+    strategy_nav.csv 기반 → 조건 충족 전략만 선택
+    → active 전략 균등 비중으로 실제 매매 실행
+    → 폴백: 아무것도 없으면 Permanent Portfolio
+```
 
 ## Fork & 시작하기
 
@@ -34,22 +52,36 @@ Fork한 저장소의 **Settings > Secrets and variables > Actions**에서 `KIS_K
 
 ### 5. 완료
 
-설정이 끝나면 평일 15:30 UTC (한국시간 00:30)에 자동으로 리밸런싱이 실행됩니다.
+설정이 끝나면 평일 15:30 UTC (한국시간 00:30)에 자동으로 실행됩니다.
 바로 테스트하려면 Actions 탭에서 수동 실행(`Run workflow`)할 수 있습니다.
 
 ## 전략 설정 (선택)
 
-기본값(DAA 50% + VAA 50%)으로도 바로 사용 가능합니다.
-전략 비중이나 매매 파라미터를 바꾸고 싶다면 `CONFIG_JSON` Secret을 등록하세요.
+기본값으로도 바로 사용 가능합니다.
+전략 구성이나 선택 기준을 바꾸고 싶다면 `CONFIG_JSON` Secret을 등록하세요.
 
 **Settings > Secrets and variables > Actions**에서 `CONFIG_JSON` Secret에 원하는 설정을 입력합니다:
 
 ```json
 {
   "strategies": [
-    { "name": "daa", "weight": 0.7 },
-    { "name": "vaa", "weight": 0.3 }
+    { "name": "vaa" },
+    { "name": "daa" },
+    { "name": "paa" },
+    { "name": "baa_g12" },
+    { "name": "baa_g4" },
+    { "name": "gem" },
+    { "name": "haa" },
+    { "name": "permanent" },
+    { "name": "all_weather" }
   ],
+  "selection": {
+    "criteria": "strategy_momentum",
+    "top_n": null,
+    "mdd_filter_threshold": -0.15,
+    "min_active_strategies": 1,
+    "fallback_strategy": "permanent"
+  },
   "strategy": {
     "rebalance_threshold_pct": 0.05,
     "cash_buffer_pct": 0.0,
@@ -57,6 +89,18 @@ Fork한 저장소의 **Settings > Secrets and variables > Actions**에서 `KIS_K
   }
 }
 ```
+
+### selection 파라미터
+
+| 항목 | 기본값 | 설명 |
+|------|--------|------|
+| `criteria` | `"strategy_momentum"` | 선택 기준: `strategy_momentum` 또는 `offensive_mode` |
+| `top_n` | `null` | 상위 N개만 선택. `null`이면 양수 전략 전부 |
+| `mdd_filter_threshold` | `-0.15` | 이 낙폭 이하인 전략 제외. `null`이면 비활성화 |
+| `min_active_strategies` | `1` | 최소 active 전략 수. 부족하면 fallback 사용 |
+| `fallback_strategy` | `"permanent"` | 아무것도 선택 안 될 때 사용할 전략 |
+
+### strategy 파라미터
 
 | 항목 | 설명 |
 |------|------|
@@ -68,6 +112,10 @@ Fork한 저장소의 **Settings > Secrets and variables > Actions**에서 `KIS_K
 > Secret으로 관리하면 Sync fork로 소스를 업데이트해도 개인 설정이 유지됩니다.
 
 ## GitHub Actions
+
+### 일별 수집 (`classicQuant-collect.yml`) — 예정
+- 평일 매일 실행
+- 매매 없음, 신호 + NAV만 기록
 
 ### 자동 리밸런싱 (`classicQuant.yml`)
 - 평일 15:30 UTC (한국시간 00:30) 자동 실행
@@ -98,15 +146,19 @@ trading:                C ── report-0211 ── report-0212 ── ...
 
 ## 로컬 실행 (테스트용)
 
-로컬에서 직접 동작을 확인할 수도 있습니다.
-
 ```bash
 pip install requests
 cp key.json.example key.json   # API 정보 입력
 ```
 
 ```bash
-# 리포트만 생성 (매매 없이 모멘텀 분석 확인)
+# 최초 1회: 과거 NAV 데이터 생성 (strategy_momentum 기준 사용 시 필요)
+python run_backfill.py
+
+# 매일: 신호 + NAV 수집 (매매 없음)
+python run_collect.py
+
+# 리포트만 생성 (매매 없이 전략 선택 결과 확인)
 python run_rebalance.py --report-only
 
 # 리밸런싱 실행 (실제 매매 발생)
@@ -121,20 +173,42 @@ python run_rebalance.py
 classicQuant/
 ├── app/
 │   ├── strategies/
+│   │   ├── vaa/          # VAA 전략 + assets.json
 │   │   ├── daa/          # DAA 전략 + assets.json
-│   │   └── vaa/          # VAA 전략 + assets.json
-│   ├── config.py         # 설정 로드
-│   ├── kis_api.py        # KIS API 클라이언트
-│   ├── momentum.py       # 모멘텀 스코어 계산
-│   ├── portfolio.py      # 포트폴리오 주문 생성/실행
-│   └── report.py         # 리포트 생성
-├── config.json           # 전략 설정
-├── key.json.example      # API 키 템플릿
-└── run_rebalance.py      # 실행 엔트리포인트
+│   │   ├── paa/          # PAA 전략 + assets.json
+│   │   ├── baa_g12/      # BAA-G12 전략 + assets.json
+│   │   ├── baa_g4/       # BAA-G4 전략 + assets.json
+│   │   ├── gem/          # GEM 전략 + assets.json
+│   │   ├── haa/          # HAA 전략 + assets.json
+│   │   ├── permanent/    # Permanent Portfolio + assets.json
+│   │   └── all_weather/  # All Weather Portfolio + assets.json
+│   ├── strategy.py        # BaseStrategy 추상 클래스
+│   ├── strategy_selector.py  # 전략 선택 로직
+│   ├── backtest.py        # NAV 백테스트 (과거 시뮬레이션)
+│   ├── config.py          # 설정 로드
+│   ├── csv_logger.py      # CSV 데이터 로깅
+│   ├── kis_api.py         # KIS API 클라이언트
+│   ├── momentum.py        # 모멘텀 스코어 계산
+│   ├── portfolio.py       # 포트폴리오 주문 생성/실행
+│   └── report.py          # 리포트 생성
+├── data/                  # CSV 출력 (trading 브랜치에서 관리)
+│   ├── strategy_signals.csv   # 일별 전략 신호
+│   ├── strategy_nav.csv       # 전략별 NAV 누적
+│   ├── momentum.csv           # 자산별 모멘텀 스코어
+│   ├── holdings.csv           # 보유 현황
+│   └── ohlc_history.csv       # 자산 가격 히스토리
+├── docs/
+│   └── STRATEGY.md        # 전략 상세 설명
+├── config.json            # 전략/선택 설정
+├── key.json.example       # API 키 템플릿
+├── run_rebalance.py       # 리밸런싱 엔트리포인트
+├── run_collect.py         # 일별 수집 엔트리포인트
+└── run_backfill.py        # 과거 데이터 백필 엔트리포인트
 ```
 
 ## 주의사항
 
 - **실거래 주문이 발생합니다.** 충분히 검증 후 실행하세요.
 - 처음 사용 시 `--report-only` 또는 리포트 전용 워크플로우로 먼저 확인하는 것을 권장합니다.
+- `strategy_momentum` 기준 사용 시 `run_backfill.py`를 먼저 실행해야 NAV 데이터가 생성됩니다.
 - 새 전략 추가 방법은 [docs/STRATEGY.md](docs/STRATEGY.md#새-전략-추가하기)를 참고하세요.

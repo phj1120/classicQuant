@@ -10,10 +10,11 @@ from app.config import (
     build_strategy_config,
     load_config,
     load_key,
+    load_selection_config,
     load_strategy_entries,
 )
 from app.assets import merge_assets_files, reload_assets
-from app.csv_logger import save_holdings, save_momentum, save_ohlc_history, save_portfolio
+from app.csv_logger import save_holdings, save_momentum, save_ohlc_history, save_portfolio, save_strategy_signal
 from app.exchange import set_exchange_default
 from datetime import datetime
 
@@ -29,11 +30,12 @@ from app.momentum import get_momentum_scores
 from app.groups import group_tickers
 from app.portfolio import build_group_orders, execute_orders, get_holdings_all_exchanges, get_prices
 from app.report import write_report
+from app.strategy_selector import select_active_strategies
 from app.strategies import get_strategy
 
 
 def _run_strategy(strategy_entry, api, prices, today):
-    """단일 전략을 실행하여 (weighted_targets, scores, targets)를 반환한다."""
+    """단일 전략을 실행하여 (weighted_targets, scores, targets, strategy_instance)를 반환한다."""
     name = strategy_entry["name"]
     weight = strategy_entry["weight"]
 
@@ -61,6 +63,11 @@ def _run_strategy(strategy_entry, api, prices, today):
         score_display = f"{score:.4f}" if score is not None else "N/A"
         print(f"- {ticker}: {w * 100:.1f}% (score {score_display})")
 
+    # 전략 신호 기록
+    mode = "offensive" if strategy.is_offensive(scores) else "defensive"
+    top_score = max((s for s in scores.values() if s is not None), default=None)
+    save_strategy_signal(today, name, mode, targets, top_score)
+
     # 전략 비중을 반영한 타겟
     weighted_targets = {group: w * weight for group, w in targets.items()}
 
@@ -71,7 +78,7 @@ def _run_strategy(strategy_entry, api, prices, today):
     new_prices = get_prices(api, [t for t in set(candidate_tickers) if t not in prices])
     prices.update(new_prices)
 
-    return weighted_targets, scores, targets, strategy.assets_file
+    return weighted_targets, scores, targets, strategy
 
 
 def main() -> None:
@@ -89,6 +96,7 @@ def main() -> None:
     kis_config = build_kis_config(key)
     strategy_cfg = build_strategy_config(raw)
     strategy_entries = load_strategy_entries(raw)
+    selection_cfg = load_selection_config(raw)
 
     # 토큰 캐싱은 key 파일에 저장 (로컬 실행 시)
     api = KoreaInvestmentAPI(kis_config, config_file=str(key_path) if key_path.exists() else None)
@@ -121,31 +129,72 @@ def main() -> None:
     from app.groups import group_for_ticker
     save_holdings(today, holdings_detail, prices, group_for_ticker)
 
-    # Phase 1: 전략별 타겟 수집 (주문 생성 없이)
-    merged_targets = {}
-    all_report_data = []
+    # Phase 1: 전략별 신호 수집 (전체 전략)
+    all_results: dict = {}   # name → (weighted_targets, scores, targets, strategy)
     asset_files = []
 
     for entry in strategy_entries:
-        weighted_targets, scores, targets, assets_file = _run_strategy(
-            entry, api, prices, today,
-        )
-        # 전략별 타겟을 합산
-        for group, weight in weighted_targets.items():
-            merged_targets[group] = merged_targets.get(group, 0.0) + weight
+        try:
+            weighted_targets, scores, targets, strategy = _run_strategy(
+                entry, api, prices, today,
+            )
+            all_results[entry["name"]] = (weighted_targets, scores, targets, strategy)
+            asset_files.append(strategy.assets_file)
+        except Exception as e:
+            print(f"❌ {entry['name']} 전략 실패: {e}")
+
+    # Phase 2: 전략 선택 (selection 기준 적용)
+    print(f"\n{'='*50}")
+    print(f"🎯 전략 선택 (criteria: {selection_cfg.get('criteria')})")
+    print(f"{'='*50}")
+
+    strategies_map = {
+        name: res[3]
+        for name, res in all_results.items()
+    }
+    scores_by_strategy = {
+        name: res[1]
+        for name, res in all_results.items()
+    }
+
+    active_entries = select_active_strategies(
+        strategy_entries=[e for e in strategy_entries if e["name"] in all_results],
+        strategies=strategies_map,
+        scores_by_strategy=scores_by_strategy,
+        selection_cfg=selection_cfg,
+    )
+
+    # Phase 3: active 전략만 포트폴리오 합산
+    merged_targets: dict = {}
+    all_report_data = []
+
+    for entry in active_entries:
+        name = entry["name"]
+        weight = entry["weight"]
+        if name not in all_results:
+            continue
+
+        _, scores, targets, _ = all_results[name]
+
+        for group, w in targets.items():
+            merged_targets[group] = merged_targets.get(group, 0.0) + w * weight
+
         all_report_data.append({
-            "name": entry["name"],
-            "weight": entry["weight"],
+            "name": name,
+            "weight": weight,
             "scores": scores,
             "targets": targets,
             "selected_tickers": {},
         })
-        asset_files.append(assets_file)
 
-    # Phase 2: 전체 전략의 assets를 병합 로드
+    if not all_report_data:
+        print("⚠️  active 전략이 없습니다. 실행을 중단합니다.")
+        return
+
+    # Phase 4: 전체 전략의 assets를 병합 로드
     merge_assets_files(asset_files)
 
-    # Phase 3: 통합 주문 생성 (1회)
+    # Phase 5: 통합 주문 생성
     print(f"\n{'='*50}")
     print("📊 통합 목표 포트폴리오")
     print(f"{'='*50}")

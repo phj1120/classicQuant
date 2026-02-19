@@ -25,3 +25,14 @@ class BaseStrategy(ABC):
         self, scores: Dict[str, Optional[float]]
     ) -> Dict[str, float]:
         """모멘텀 점수를 기반으로 목표 포트폴리오(그룹→비중)를 반환한다."""
+
+    def is_offensive(self, scores: Dict[str, Optional[float]]) -> bool:
+        """offensive_mode 기준용: 현재 공격자산에 투자 중인지 여부.
+
+        기본 구현은 select_targets() 결과가 offensive 그룹에 속하는지 확인.
+        정적 전략(Permanent, All Weather)은 True를 반환하도록 오버라이드.
+        """
+        from app.assets import asset_groups
+        targets = self.select_targets(scores)
+        offensive = set(asset_groups("offensive"))
+        return any(t in offensive for t in targets)
