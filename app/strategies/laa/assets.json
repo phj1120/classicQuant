@@ -1,0 +1,29 @@
+{
+  "risk_on": {
+    "QQQ": [
+      { "ticker": "QQQ", "exchange_code": "NASD", "priority": 1 },
+      { "ticker": "QQQM", "exchange_code": "NASD", "priority": 2 }
+    ],
+    "IWD": [
+      { "ticker": "IWD", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "VTV", "exchange_code": "AMEX", "priority": 2 }
+    ],
+    "GLD": [
+      { "ticker": "GLD", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "GLDM", "exchange_code": "AMEX", "priority": 2 }
+    ],
+    "IEF": [
+      { "ticker": "IEF", "exchange_code": "NASD", "priority": 1 }
+    ]
+  },
+  "risk_off": {
+    "SHY": [
+      { "ticker": "SHY", "exchange_code": "NASD", "priority": 1 }
+    ]
+  },
+  "trend": {
+    "SPY": [
+      { "ticker": "SPY", "exchange_code": "AMEX", "priority": 1 }
+    ]
+  }
+}

@@ -30,7 +30,11 @@ class AllWeatherStrategy(BaseStrategy):
     def get_universe(self) -> List[str]:
         return sorted(asset_groups("fixed"))
 
-    def select_targets(self, scores: Dict[str, Optional[float]]) -> Dict[str, float]:
+    def select_targets(
+        self,
+        scores: Dict[str, Optional[float]],
+        histories: Dict[str, List[float]] | None = None,
+    ) -> Dict[str, float]:
         return dict(_WEIGHTS)
 
     def is_offensive(self, scores: Dict[str, Optional[float]]) -> bool:

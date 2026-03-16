@@ -26,7 +26,15 @@ class GEMStrategy(BaseStrategy):
         defensive = asset_groups("defensive")
         return sorted(set(offensive + defensive))
 
-    def select_targets(self, scores: Dict[str, Optional[float]]) -> Dict[str, float]:
+    def score_from_returns(self, returns: Dict[str, Optional[float]]) -> Optional[float]:
+        """Antonacci 원논문: 12개월 수익률만 사용 (복합 공식 X)."""
+        return returns.get("r12m")
+
+    def select_targets(
+        self,
+        scores: Dict[str, Optional[float]],
+        histories: Dict[str, List[float]] | None = None,
+    ) -> Dict[str, float]:
         offensive_assets = asset_groups("offensive")   # SPY, EFA
         defensive_assets = asset_groups("defensive")   # AGG
 

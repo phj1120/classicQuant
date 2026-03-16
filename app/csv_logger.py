@@ -11,6 +11,7 @@ PORTFOLIO_CSV = DATA_DIR / "portfolio.csv"
 OHLC_CSV = DATA_DIR / "ohlc_history.csv"
 STRATEGY_SIGNALS_CSV = DATA_DIR / "strategy_signals.csv"
 STRATEGY_NAV_CSV = DATA_DIR / "strategy_nav.csv"
+PORTFOLIO_NAV_CSV = DATA_DIR / "portfolio_nav.csv"
 
 HOLDINGS_HEADER = ["date", "ticker", "group", "qty", "price", "value", "exchange"]
 MOMENTUM_HEADER = ["date", "strategy", "group", "score", "r1m", "r3m", "r6m", "r12m"]
@@ -18,6 +19,7 @@ PORTFOLIO_HEADER = ["date", "total_equity", "cash", "strategy", "group", "target
 OHLC_HEADER = ["ticker", "date", "close"]
 STRATEGY_SIGNALS_HEADER = ["date", "strategy", "mode", "selected_assets", "top_score"]
 STRATEGY_NAV_HEADER = ["date", "strategy", "daily_return", "nav"]
+PORTFOLIO_NAV_HEADER = ["date", "nav", "daily_return"]
 
 
 def _ensure_dir() -> None:
@@ -235,3 +237,29 @@ def save_ohlc_history(ticker: str, history_data: List[Dict]) -> None:
 
     if rows_to_add:
         _append_rows(OHLC_CSV, OHLC_HEADER, rows_to_add)
+
+
+def save_portfolio_nav(date: str, nav: float, daily_return: float) -> None:
+    """포트폴리오 NAV를 portfolio_nav.csv에 기록 (중복 날짜 스킵)."""
+    _ensure_dir()
+    existing_dates: set = set()
+    if PORTFOLIO_NAV_CSV.exists() and PORTFOLIO_NAV_CSV.stat().st_size > 0:
+        with open(PORTFOLIO_NAV_CSV, "r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                existing_dates.add(row.get("date", ""))
+    if date in existing_dates:
+        return
+    _append_rows(PORTFOLIO_NAV_CSV, PORTFOLIO_NAV_HEADER, [[date, f"{nav:.6f}", f"{daily_return:.6f}"]])
+
+
+def load_portfolio_nav() -> List[Dict]:
+    """portfolio_nav.csv 로드. 날짜 오름차순."""
+    if not PORTFOLIO_NAV_CSV.exists():
+        return []
+    rows = []
+    with open(PORTFOLIO_NAV_CSV, "r", newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            rows.append(row)
+    return sorted(rows, key=lambda r: r.get("date", ""))

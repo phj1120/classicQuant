@@ -27,7 +27,11 @@ class HAAStrategy(BaseStrategy):
         defensive = asset_groups("defensive")
         return sorted(set(offensive + defensive))
 
-    def select_targets(self, scores: Dict[str, Optional[float]]) -> Dict[str, float]:
+    def select_targets(
+        self,
+        scores: Dict[str, Optional[float]],
+        histories: Dict[str, List[float]] | None = None,
+    ) -> Dict[str, float]:
         offensive_assets = asset_groups("offensive")
         defensive_assets = asset_groups("defensive")
 

@@ -50,11 +50,31 @@ def _compute_scores_at_date(
         for ticker in group_tickers(group):
             prices = _prices_up_to(price_dict, ticker, date)
             if len(prices) > LOOKBACK_DAYS["12m"]:
-                score, _ = compute_momentum(prices)
+                _, returns = compute_momentum(prices)
+                score = strategy.score_from_returns(returns)
                 if score is not None:
                     break
         scores[group] = score
     return scores
+
+
+def _build_histories_at_date(
+    strategy: BaseStrategy,
+    price_dict: Dict[str, Dict[str, float]],
+    date: str,
+) -> Dict[str, List[float]]:
+    """특정 날짜 기준 전략 universe의 파싱된 가격 시계열을 반환한다.
+
+    SMA·변동성·상관관계 계산이 필요한 전략(GTAA, Ivy, FAA, EAA, LAA)에 사용됩니다.
+    """
+    from app.assets import group_tickers
+    histories: Dict[str, List[float]] = {}
+    for group in strategy.get_universe():
+        for ticker in group_tickers(group):
+            prices = _prices_up_to(price_dict, ticker, date)
+            if prices:
+                histories[ticker] = prices
+    return histories
 
 
 def run_backtest(
@@ -109,8 +129,9 @@ def run_backtest(
         if date in set(month_ends):
             reload_assets(strategy.assets_file)
             scores = _compute_scores_at_date(strategy, price_dict, date)
+            histories = _build_histories_at_date(strategy, price_dict, date)
             try:
-                current_targets = strategy.select_targets(scores)
+                current_targets = strategy.select_targets(scores, histories=histories)
             except RuntimeError:
                 pass  # 데이터 부족 시 이전 targets 유지
             last_rebalance_date = date

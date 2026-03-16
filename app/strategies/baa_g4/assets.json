@@ -1,8 +1,7 @@
 {
   "offensive": {
     "SPY": [
-      { "ticker": "SPY", "exchange_code": "AMEX", "priority": 1 },
-      { "ticker": "SPLG", "exchange_code": "AMEX", "priority": 2 }
+      { "ticker": "SPY", "exchange_code": "AMEX", "priority": 1 }
     ],
     "EFA": [
       { "ticker": "EFA", "exchange_code": "AMEX", "priority": 1 },

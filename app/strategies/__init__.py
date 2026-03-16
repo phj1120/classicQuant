@@ -32,3 +32,9 @@ from app.strategies import gem as _gem  # noqa: F401, E402
 from app.strategies import haa as _haa  # noqa: F401, E402
 from app.strategies import permanent as _permanent  # noqa: F401, E402
 from app.strategies import all_weather as _all_weather  # noqa: F401, E402
+from app.strategies import golden_butterfly as _golden_butterfly  # noqa: F401, E402
+from app.strategies import gtaa as _gtaa  # noqa: F401, E402
+from app.strategies import ivy as _ivy  # noqa: F401, E402
+from app.strategies import faa as _faa  # noqa: F401, E402
+from app.strategies import eaa as _eaa  # noqa: F401, E402
+from app.strategies import laa as _laa  # noqa: F401, E402

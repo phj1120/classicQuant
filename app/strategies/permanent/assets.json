@@ -1,8 +1,7 @@
 {
   "fixed": {
     "SPY": [
-      { "ticker": "SPY", "exchange_code": "AMEX", "priority": 1 },
-      { "ticker": "SPLG", "exchange_code": "AMEX", "priority": 2 }
+      { "ticker": "SPY", "exchange_code": "AMEX", "priority": 1 }
     ],
     "TLT": [
       { "ticker": "TLT", "exchange_code": "NASD", "priority": 1 },

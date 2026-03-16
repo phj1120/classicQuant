@@ -33,6 +33,7 @@ from app.csv_logger import (
 from app.exchange import set_exchange_for_ticker
 from app.groups import group_tickers
 from app.kis_api import KoreaInvestmentAPI
+from app.data_utils import parse_history
 from app.momentum import get_momentum_scores
 from app.strategies import get_strategy
 
@@ -136,8 +137,10 @@ def main() -> None:
             reload_assets(strategy.assets_file)
 
             universe = strategy.get_universe()
-            scores, all_returns, all_histories = get_momentum_scores(api, universe)
-            targets = strategy.select_targets(scores)
+            _, all_returns, all_histories = get_momentum_scores(api, universe)
+            scores = {group: strategy.score_from_returns(rets) for group, rets in all_returns.items()}
+            parsed_histories = {t: parse_history(h) for t, h in all_histories.items()}
+            targets = strategy.select_targets(scores, histories=parsed_histories)
 
             # 모멘텀 기록
             save_momentum(today, name, scores, all_returns)
