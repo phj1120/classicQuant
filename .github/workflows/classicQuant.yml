@@ -24,7 +24,9 @@ jobs:
       IS_MAIN: ${{ github.ref_name == 'main' }}
 
     steps:
-      - name: Checkout data branch
+      # main: trading 브랜치 체크아웃 후 main 위에 rebase
+      - name: Checkout data branch (main only)
+        if: github.ref_name == 'main'
         uses: actions/checkout@v4
         with:
           ref: ${{ env.DATA_BRANCH }}
@@ -32,11 +34,11 @@ jobs:
         continue-on-error: true
         id: checkout-data
 
-      - name: Init data branch from source
-        if: steps.checkout-data.outcome == 'failure'
+      - name: Init data branch from main
+        if: github.ref_name == 'main' && steps.checkout-data.outcome == 'failure'
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.SOURCE_BRANCH }}
+          ref: main
           fetch-depth: 0
 
       - name: Setup git
@@ -45,16 +47,24 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Create data branch
-        if: steps.checkout-data.outcome == 'failure'
+        if: github.ref_name == 'main' && steps.checkout-data.outcome == 'failure'
         run: |
           git checkout -b "$DATA_BRANCH"
           git push origin "$DATA_BRANCH"
 
-      - name: Rebase data branch onto source
-        if: steps.checkout-data.outcome == 'success'
+      - name: Rebase data branch onto main
+        if: github.ref_name == 'main' && steps.checkout-data.outcome == 'success'
         run: |
-          git fetch origin "$SOURCE_BRANCH"
-          git rebase "origin/$SOURCE_BRANCH"
+          git fetch origin main
+          git rebase origin/main
+
+      # non-main: 소스 브랜치만 체크아웃 (trading 불필요)
+      - name: Checkout source branch (non-main)
+        if: github.ref_name != 'main'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_BRANCH }}
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
