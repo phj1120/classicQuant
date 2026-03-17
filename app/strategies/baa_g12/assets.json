@@ -1,11 +1,13 @@
 {
   "offensive": {
     "SPY": [
-      { "ticker": "SPY", "exchange_code": "AMEX", "priority": 1 }
+      { "ticker": "SPY", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "SPLG", "exchange_code": "AMEX", "priority": 2 }
     ],
     "IWM": [
       { "ticker": "IWM", "exchange_code": "AMEX", "priority": 1 },
-      { "ticker": "IJR", "exchange_code": "AMEX", "priority": 2 }
+      { "ticker": "IJR", "exchange_code": "AMEX", "priority": 2 },
+      { "ticker": "SPSM", "exchange_code": "AMEX", "priority": 3 }
     ],
     "QQQ": [
       { "ticker": "QQQ", "exchange_code": "NASD", "priority": 1 },
@@ -37,7 +39,8 @@
     ],
     "TLT": [
       { "ticker": "TLT", "exchange_code": "NASD", "priority": 1 },
-      { "ticker": "EDV", "exchange_code": "AMEX", "priority": 2 }
+      { "ticker": "EDV", "exchange_code": "AMEX", "priority": 2 },
+      { "ticker": "SPTL", "exchange_code": "AMEX", "priority": 3 }
     ],
     "HYG": [
       { "ticker": "HYG", "exchange_code": "AMEX", "priority": 1 },
@@ -50,13 +53,16 @@
   },
   "defensive": {
     "SHY": [
-      { "ticker": "SHY", "exchange_code": "NASD", "priority": 1 }
+      { "ticker": "SHY", "exchange_code": "NASD", "priority": 1 },
+      { "ticker": "CLTL", "exchange_code": "AMEX", "priority": 2 }
     ],
     "IEF": [
-      { "ticker": "IEF", "exchange_code": "NASD", "priority": 1 }
+      { "ticker": "IEF", "exchange_code": "NASD", "priority": 1 },
+      { "ticker": "SCHR", "exchange_code": "AMEX", "priority": 2 }
     ],
     "LQDB": [
-      { "ticker": "LQD", "exchange_code": "AMEX", "priority": 1 }
+      { "ticker": "LQD", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "VCIT", "exchange_code": "NASD", "priority": 2 }
     ]
   }
 }

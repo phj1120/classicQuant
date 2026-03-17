@@ -1,7 +1,8 @@
 {
   "fixed": {
     "SPY": [
-      { "ticker": "SPY", "exchange_code": "AMEX", "priority": 1 }
+      { "ticker": "SPY", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "SPLG", "exchange_code": "AMEX", "priority": 2 }
     ],
     "VBR": [
       { "ticker": "VBR", "exchange_code": "AMEX", "priority": 1 },
@@ -9,11 +10,13 @@
     ],
     "TLT": [
       { "ticker": "TLT", "exchange_code": "NASD", "priority": 1 },
-      { "ticker": "EDV", "exchange_code": "AMEX", "priority": 2 }
+      { "ticker": "EDV", "exchange_code": "AMEX", "priority": 2 },
+      { "ticker": "SPTL", "exchange_code": "AMEX", "priority": 3 }
     ],
     "SHY": [
       { "ticker": "SHY", "exchange_code": "NASD", "priority": 1 },
-      { "ticker": "BIL", "exchange_code": "AMEX", "priority": 2 }
+      { "ticker": "BIL", "exchange_code": "AMEX", "priority": 2 },
+      { "ticker": "CLTL", "exchange_code": "AMEX", "priority": 3 }
     ],
     "GLD": [
       { "ticker": "GLD", "exchange_code": "AMEX", "priority": 1 },

@@ -13,17 +13,20 @@
       { "ticker": "GLDM", "exchange_code": "AMEX", "priority": 2 }
     ],
     "IEF": [
-      { "ticker": "IEF", "exchange_code": "NASD", "priority": 1 }
+      { "ticker": "IEF", "exchange_code": "NASD", "priority": 1 },
+      { "ticker": "SCHR", "exchange_code": "AMEX", "priority": 2 }
     ]
   },
   "risk_off": {
     "SHY": [
-      { "ticker": "SHY", "exchange_code": "NASD", "priority": 1 }
+      { "ticker": "SHY", "exchange_code": "NASD", "priority": 1 },
+      { "ticker": "CLTL", "exchange_code": "AMEX", "priority": 2 }
     ]
   },
   "trend": {
     "SPY": [
-      { "ticker": "SPY", "exchange_code": "AMEX", "priority": 1 }
+      { "ticker": "SPY", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "SPLG", "exchange_code": "AMEX", "priority": 2 }
     ]
   }
 }

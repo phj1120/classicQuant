@@ -1,7 +1,8 @@
 {
   "universe": {
     "SPY": [
-      { "ticker": "SPY", "exchange_code": "AMEX", "priority": 1 }
+      { "ticker": "SPY", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "SPLG", "exchange_code": "AMEX", "priority": 2 }
     ],
     "EFA": [
       { "ticker": "EFA", "exchange_code": "AMEX", "priority": 1 }
@@ -23,12 +24,14 @@
       { "ticker": "GLDM", "exchange_code": "AMEX", "priority": 2 }
     ],
     "IEF": [
-      { "ticker": "IEF", "exchange_code": "NASD", "priority": 1 }
+      { "ticker": "IEF", "exchange_code": "NASD", "priority": 1 },
+      { "ticker": "SCHR", "exchange_code": "AMEX", "priority": 2 }
     ]
   },
   "defensive": {
     "SHY": [
-      { "ticker": "SHY", "exchange_code": "NASD", "priority": 1 }
+      { "ticker": "SHY", "exchange_code": "NASD", "priority": 1 },
+      { "ticker": "CLTL", "exchange_code": "AMEX", "priority": 2 }
     ]
   }
 }
