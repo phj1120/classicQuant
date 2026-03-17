@@ -1,6 +1,6 @@
 # classicQuant
 
-모멘텀 기반 퀀트 전략(DAA, VAA)을 GitHub Actions로 자동 운용합니다.
+15가지 모멘텀 기반 퀀트 전략을 GitHub Actions로 자동 운용합니다.
 Fork 후 API 키만 등록하면 매일 자동으로 리밸런싱이 실행됩니다.
 
 > 전략 상세 설명은 [docs/STRATEGY.md](docs/STRATEGY.md)를 참고하세요.
@@ -69,14 +69,17 @@ Fork한 저장소의 **Settings > Secrets and variables > Actions**에서 `KIS_K
 
 ## GitHub Actions
 
-### 자동 리밸런싱 (`classicQuant.yml`)
-- 평일 15:30 UTC (한국시간 00:30) 자동 실행
-- 매매 실행 + 리포트 생성 + 데이터 커밋
-- 최대 5회 재시도
+단일 워크플로우(`classicQuant.yml`)가 트리거 브랜치에 따라 동작을 달리합니다.
 
-### 리포트 전용 (`classicQuant-report.yml`)
-- Actions 탭 > "ClassicQuant Report Only" > "Run workflow"로 수동 실행
-- 매매 없이 모멘텀 분석 리포트만 생성
+| 트리거 | 동작 | 커밋 |
+|--------|------|------|
+| 스케줄 / `main` | 실제 매매 + 리포트 생성 | `trading` 브랜치에 커밋 |
+| 수동 / `main` | 실제 매매 + 리포트 생성 | `trading` 브랜치에 커밋 |
+| 수동 / 그 외 브랜치 | 리포트만 생성 (매매 없음) | 커밋 없음 |
+
+- 스케줄은 평일 15:30 UTC (한국시간 00:30) 자동 실행
+- 매매 실패 시 최대 5회 재시도
+- `dev` 브랜치 등에서 수동 실행하면 매매 없이 리포트 동작만 확인 가능
 
 ### 브랜치 구조
 
@@ -86,6 +89,7 @@ Fork한 저장소의 **Settings > Secrets and variables > Actions**에서 `KIS_K
 | 브랜치 | 용도 |
 |--------|------|
 | `main` | 소스 코드, 설정, 워크플로우 |
+| `dev` | 개발/테스트 브랜치 |
 | `trading` | `main` + 일별 리포트(`reports/`), CSV 데이터(`data/`) |
 
 ```
@@ -121,20 +125,34 @@ python run_rebalance.py
 classicQuant/
 ├── app/
 │   ├── strategies/
-│   │   ├── daa/          # DAA 전략 + assets.json
-│   │   └── vaa/          # VAA 전략 + assets.json
-│   ├── config.py         # 설정 로드
-│   ├── kis_api.py        # KIS API 클라이언트
-│   ├── momentum.py       # 모멘텀 스코어 계산
-│   ├── portfolio.py      # 포트폴리오 주문 생성/실행
-│   └── report.py         # 리포트 생성
-├── config.json           # 전략 설정
-├── key.json.example      # API 키 템플릿
-└── run_rebalance.py      # 실행 엔트리포인트
+│   │   ├── daa/              # DAA 전략 + assets.json
+│   │   ├── vaa/              # VAA 전략 + assets.json
+│   │   ├── paa/              # PAA 전략 + assets.json
+│   │   ├── baa_g12/          # BAA G12 전략 + assets.json
+│   │   ├── baa_g4/           # BAA G4 전략 + assets.json
+│   │   ├── gem/              # GEM 전략 + assets.json
+│   │   ├── haa/              # HAA 전략 + assets.json
+│   │   ├── eaa/              # EAA 전략 + assets.json
+│   │   ├── faa/              # FAA 전략 + assets.json
+│   │   ├── laa/              # LAA 전략 + assets.json
+│   │   ├── gtaa/             # GTAA 전략 + assets.json
+│   │   ├── ivy/              # IVY 전략 + assets.json
+│   │   ├── permanent/        # Permanent Portfolio + assets.json
+│   │   ├── all_weather/      # All Weather + assets.json
+│   │   └── golden_butterfly/ # Golden Butterfly + assets.json
+│   ├── config.py             # 설정 로드
+│   ├── kis_api.py            # KIS API 클라이언트
+│   ├── momentum.py           # 모멘텀 스코어 계산
+│   ├── portfolio.py          # 포트폴리오 주문 생성/실행
+│   ├── report.py             # 리포트 생성
+│   └── strategy.py           # BaseStrategy 추상 클래스
+├── config.json               # 전략 설정
+├── key.json.example          # API 키 템플릿
+└── run_rebalance.py          # 실행 엔트리포인트
 ```
 
 ## 주의사항
 
 - **실거래 주문이 발생합니다.** 충분히 검증 후 실행하세요.
-- 처음 사용 시 `--report-only` 또는 리포트 전용 워크플로우로 먼저 확인하는 것을 권장합니다.
+- 처음 사용 시 `--report-only` 옵션 또는 `dev` 브랜치에서 수동 실행으로 먼저 확인하는 것을 권장합니다.
 - 새 전략 추가 방법은 [docs/STRATEGY.md](docs/STRATEGY.md#새-전략-추가하기)를 참고하세요.
