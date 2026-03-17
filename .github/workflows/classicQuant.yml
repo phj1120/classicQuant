@@ -42,6 +42,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup git
+        if: github.ref_name == 'main'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -56,7 +57,7 @@ jobs:
         if: github.ref_name == 'main' && steps.checkout-data.outcome == 'success'
         run: |
           git fetch origin main
-          git rebase origin/main
+          git rebase -X theirs origin/main
 
       # non-main: 소스 브랜치만 체크아웃 (trading 불필요)
       - name: Checkout source branch (non-main)
