@@ -21,39 +21,79 @@
 
 15개 전략을 매일 paper tracking하고, 선택 기준에 따라 top_n개 전략만 선택합니다.
 
-`run_selection_backtest.py`로 5년 NAV 백테스트를 통해 최적 기준을 확인할 수 있습니다.
+`run_selection_backtest.py`로 NAV 백테스트를 통해 최적 기준과 top_n을 확인할 수 있습니다.
 
 ### 선택 기준 (criteria)
 
-| 기준 | 설명 | score > 0 필터 |
-|------|------|----------------|
-| `strategy_momentum` | NAV에 Keller 복합 공식 적용 | 적용 |
-| `return_1m` | 최근 1개월 NAV 수익률 | 미적용 |
-| `return_3m` | 최근 3개월 NAV 수익률 | 미적용 |
-| `return_6m` | 최근 6개월 NAV 수익률 | 미적용 |
-| `return_12m` | 최근 12개월 NAV 수익률 | 미적용 |
-| `sharpe_12m` | 최근 12개월 Sharpe ratio | 미적용 |
-| `calmar_12m` | 최근 12개월 CAGR / \|MDD\| | 미적용 |
+| 기준 | 설명 | 비고 |
+|------|------|------|
+| `corr_constrained` | sharpe_12m 랭킹 후 상관관계 0.7 이상 전략 제외 | **권장** |
+| `sharpe_12m` | 최근 12개월 Sharpe ratio 상위 N개 | — |
+| `calmar_12m` | 최근 12개월 CAGR / \|MDD\| 상위 N개 | — |
+| `strategy_momentum` | NAV에 Keller 복합 공식 적용, score > 0만 선택 | — |
+| `return_1m` | 최근 1개월 NAV 수익률 상위 N개 | — |
+| `return_3m` | 최근 3개월 NAV 수익률 상위 N개 | — |
+| `return_6m` | 최근 6개월 NAV 수익률 상위 N개 | — |
+| `return_12m` | 최근 12개월 NAV 수익률 상위 N개 | — |
 | `offensive_mode` | 공격자산 투자 여부 (NAV 데이터 없을 때) | — |
 
-#### 백테스트로 최적 기준 확인
+#### corr_constrained 동작 방식
+
+1. 전체 전략을 `sharpe_12m`으로 랭킹
+2. 상위부터 순서대로 검토
+3. 이미 선택된 전략들과 63일 피어슨 상관관계가 0.7 미만인 경우에만 추가
+4. `top_n`개 채워지거나 후보 소진 시 종료
+
+동일 시장국면에 강한 전략끼리 중복 선택되는 집중 위험을 방지합니다.
+
+#### 백테스트로 기준·top_n 확인
 
 ```bash
-python run_selection_backtest.py --top-n 3 --years 5
-python run_selection_backtest.py --sweep   # top_n 1~6 스윕
+# 기준별 성과 비교 (top_n=4)
+python run_selection_backtest.py --top-n 4
+
+# 다기준 합의 기반 robust top_n 분석 (과적합 방지 권장)
+python run_selection_backtest.py --robust-n
+
+# top_n 1~15 Sharpe 히트맵
+python run_selection_backtest.py --sweep
+
+# 전체 조합 파레토 분석 (criteria × top_n × mdd_threshold)
+python run_selection_backtest.py --full
 ```
 
-### MDD 필터
+`--robust-n`은 단일 기준 최적화의 과적합 위험을 경고하고, 여러 기준에서 일관되게 좋은 top_n을 추천합니다.
+
+### MDD 필터 (전략 레벨)
 
 ```json
-"mdd_filter_threshold": -0.15
+"mdd_filter_threshold": -0.05
 ```
 
-고점 대비 -15% 이상 하락한 전략을 제외합니다. `null`로 설정하면 비활성화됩니다.
+고점 대비 -5% 이상 하락한 전략을 선택 대상에서 제외합니다. `null`로 설정하면 비활성화됩니다.
+
+### 포트폴리오 MDD 서킷 브레이커 (포트폴리오 레벨)
+
+```json
+"portfolio_mdd_limit": -0.20
+```
+
+`data/portfolio_nav.csv` 기준 포트폴리오 전체 낙폭이 이 값 이하로 내려가면:
+- 모든 전략 선택 무시
+- `fallback_strategy`(기본 permanent)로 강제 전환
+
+**portfolio_nav.csv 백필 (최초 1회 필수):**
+
+```bash
+python run_selection_backtest.py --generate-portfolio-nav
+```
+
+`strategy_nav.csv` 전체 기간을 현재 config 기준으로 시뮬레이션하여 즉시 생성됩니다.
+이후 `run_rebalance.py` 실행마다 당일 NAV가 자동 누적됩니다.
 
 ### 폴백(Fallback)
 
-active 전략이 `min_active_strategies`(기본 1) 미만이면 `fallback_strategy`(기본 permanent)를 사용합니다.
+서킷 브레이커 발동 또는 유효 전략이 없을 때 `fallback_strategy`(기본 permanent)를 단독 사용합니다.
 
 ---
 
@@ -263,6 +303,7 @@ class MyStrategy(BaseStrategy):
 |------|------|
 | `data/strategy_signals.csv` | date, strategy, mode, selected_assets, top_score |
 | `data/strategy_nav.csv` | date, strategy, daily_return, nav |
+| `data/portfolio_nav.csv` | date, nav, daily_return (포트폴리오 합산, 서킷 브레이커용) |
 | `data/momentum.csv` | date, strategy, group, score, r1m, r3m, r6m, r12m |
 | `data/holdings.csv` | date, ticker, group, qty, price, value, exchange |
 | `data/portfolio.csv` | date, total_equity, cash, strategy, group, target_weight, selected_ticker |
