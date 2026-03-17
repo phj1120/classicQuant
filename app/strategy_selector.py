@@ -146,11 +146,11 @@ def _select_by_nav_score(
 
         if criteria == "strategy_momentum":
             score, drawdown = _compute_nav_momentum(nav_series)
-        elif criteria == "corr_constrained":
-            score = _compute_nav_score(prices, rets, "sharpe_12m")
         else:
-            score = _compute_nav_score(prices, rets, criteria)
-            # drawdown 계산
+            if criteria == "corr_constrained":
+                score = _compute_nav_score(prices, rets, "sharpe_12m")
+            else:
+                score = _compute_nav_score(prices, rets, criteria)
             peak = max(prices) if prices else 1.0
             drawdown = (prices[-1] / peak - 1.0) if prices and peak > 0 else 0.0
 
