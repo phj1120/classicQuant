@@ -4,3 +4,7 @@ date,total_equity,cash,strategy,group,target_weight,selected_ticker
 2026-03-17,556.37,60.41,all_weather,IEF,0.0375,
 2026-03-17,556.37,60.41,all_weather,SPY,0.0750,
 2026-03-17,556.37,60.41,all_weather,TLT,0.1000,
+2026-03-17,550.94,550.94,laa,GLD,0.0625,
+2026-03-17,550.94,550.94,laa,IEF,0.0625,SCHR
+2026-03-17,550.94,550.94,laa,IWD,0.0625,
+2026-03-17,550.94,550.94,laa,QQQ,0.0625,
