@@ -75,15 +75,41 @@ def build_strategy_config(raw: Dict) -> Dict:
 
 
 def load_strategy_entries(raw: Dict) -> List[Dict]:
-    """config.json의 strategies 배열에서 전략 목록을 로드한다."""
+    """config.json의 strategies 배열에서 전략 목록을 로드한다.
+
+    weight 필드가 있으면 정규화하여 사용, 없으면 균등 배분 (나중에 선택 로직이 재계산).
+    """
     data = raw.get("strategies", [])
     if not data:
         raise RuntimeError("config.json에 strategies 설정이 필요합니다.")
-    total = sum(e.get("weight", 1.0) for e in data)
+    has_weights = any("weight" in e for e in data)
+    if has_weights:
+        total = sum(e.get("weight", 1.0) for e in data)
+        return [
+            {
+                "name": e.get("name", "daa"),
+                "weight": e.get("weight", 1.0) / total,
+            }
+            for e in data
+        ]
+    # weight 없음 → 균등 배분 (선택 로직에서 active 전략만 재계산)
+    n = len(data)
     return [
         {
             "name": e.get("name", "daa"),
-            "weight": e.get("weight", 1.0) / total,
+            "weight": 1.0 / n,
         }
         for e in data
     ]
+
+
+def load_selection_config(raw: Dict) -> Dict:
+    """config.json의 selection 섹션을 로드한다."""
+    defaults = {
+        "criteria": "strategy_momentum",
+        "top_n": None,
+        "mdd_filter_threshold": None,
+        "min_active_strategies": 1,
+        "fallback_strategy": "permanent",
+    }
+    return {**defaults, **raw.get("selection", {})}

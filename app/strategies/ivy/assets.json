@@ -1,0 +1,26 @@
+{
+  "offensive": {
+    "VTI": [
+      { "ticker": "VTI", "exchange_code": "AMEX", "priority": 1 }
+    ],
+    "EFA": [
+      { "ticker": "EFA", "exchange_code": "AMEX", "priority": 1 }
+    ],
+    "VNQ": [
+      { "ticker": "VNQ", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "SCHH", "exchange_code": "AMEX", "priority": 2 }
+    ],
+    "IEF": [
+      { "ticker": "IEF", "exchange_code": "NASD", "priority": 1 }
+    ],
+    "DBC": [
+      { "ticker": "DBC", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "PDBC", "exchange_code": "NASD", "priority": 2 }
+    ]
+  },
+  "defensive": {
+    "SHY": [
+      { "ticker": "SHY", "exchange_code": "NASD", "priority": 1 }
+    ]
+  }
+}

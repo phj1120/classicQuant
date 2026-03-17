@@ -1,0 +1,34 @@
+{
+  "universe": {
+    "SPY": [
+      { "ticker": "SPY", "exchange_code": "AMEX", "priority": 1 }
+    ],
+    "EFA": [
+      { "ticker": "EFA", "exchange_code": "AMEX", "priority": 1 }
+    ],
+    "EEM": [
+      { "ticker": "EEM", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "IEMG", "exchange_code": "AMEX", "priority": 2 }
+    ],
+    "VNQ": [
+      { "ticker": "VNQ", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "SCHH", "exchange_code": "AMEX", "priority": 2 }
+    ],
+    "DBC": [
+      { "ticker": "DBC", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "PDBC", "exchange_code": "NASD", "priority": 2 }
+    ],
+    "GLD": [
+      { "ticker": "GLD", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "GLDM", "exchange_code": "AMEX", "priority": 2 }
+    ],
+    "IEF": [
+      { "ticker": "IEF", "exchange_code": "NASD", "priority": 1 }
+    ]
+  },
+  "defensive": {
+    "SHY": [
+      { "ticker": "SHY", "exchange_code": "NASD", "priority": 1 }
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "fixed": {
+    "SPY": [
+      { "ticker": "SPY", "exchange_code": "AMEX", "priority": 1 }
+    ],
+    "TLT": [
+      { "ticker": "TLT", "exchange_code": "NASD", "priority": 1 },
+      { "ticker": "EDV", "exchange_code": "AMEX", "priority": 2 }
+    ],
+    "GLD": [
+      { "ticker": "GLD", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "GLDM", "exchange_code": "AMEX", "priority": 2 }
+    ],
+    "BIL": [
+      { "ticker": "BIL", "exchange_code": "AMEX", "priority": 1 },
+      { "ticker": "SHV", "exchange_code": "NASD", "priority": 2 }
+    ]
+  }
+}

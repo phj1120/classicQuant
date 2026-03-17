@@ -26,7 +26,9 @@ class DAAStrategy(BaseStrategy):
         return sorted(set(offensive + defensive + canary))
 
     def select_targets(
-        self, scores: Dict[str, Optional[float]]
+        self,
+        scores: Dict[str, Optional[float]],
+        histories: Dict[str, List[float]] | None = None,
     ) -> Dict[str, float]:
         canary_assets = asset_groups("canary")
         defensive_assets = asset_groups("defensive")
