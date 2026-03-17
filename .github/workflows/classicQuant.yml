@@ -1,4 +1,4 @@
-name: ClassicQuant Daily Rebalance
+name: ClassicQuant
 
 on:
   schedule:
@@ -10,30 +10,33 @@ permissions:
   contents: write
 
 concurrency:
-  group: classicquant-rebalance
+  group: classicquant-${{ github.ref_name }}
   cancel-in-progress: false
 
-env:
-  DATA_BRANCH: trading
-
 jobs:
-  rebalance:
+  run:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
+    env:
+      SOURCE_BRANCH: ${{ github.ref_name }}
+      DATA_BRANCH: trading
+      IS_MAIN: ${{ github.ref_name == 'main' }}
+
     steps:
-      - name: Checkout trading branch
+      - name: Checkout data branch
         uses: actions/checkout@v4
         with:
           ref: ${{ env.DATA_BRANCH }}
           fetch-depth: 0
         continue-on-error: true
-        id: checkout-trading
+        id: checkout-data
 
-      - name: Init trading branch from main
-        if: steps.checkout-trading.outcome == 'failure'
+      - name: Init data branch from source
+        if: steps.checkout-data.outcome == 'failure'
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ env.SOURCE_BRANCH }}
           fetch-depth: 0
 
       - name: Setup git
@@ -41,17 +44,17 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Create trading branch
-        if: steps.checkout-trading.outcome == 'failure'
+      - name: Create data branch
+        if: steps.checkout-data.outcome == 'failure'
         run: |
           git checkout -b "$DATA_BRANCH"
           git push origin "$DATA_BRANCH"
 
-      - name: Rebase trading onto main
-        if: steps.checkout-trading.outcome == 'success'
+      - name: Rebase data branch onto source
+        if: steps.checkout-data.outcome == 'success'
         run: |
-          git fetch origin main
-          git rebase origin/main
+          git fetch origin "$SOURCE_BRANCH"
+          git rebase "origin/$SOURCE_BRANCH"
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -79,7 +82,8 @@ jobs:
         if: env.CONFIG_JSON != ''
         run: echo "$CONFIG_JSON" > config.json
 
-      - name: Run rebalance
+      - name: Run rebalance (main only)
+        if: env.IS_MAIN == 'true'
         run: |
           set -euo pipefail
           LOG_DIR="logs"
@@ -94,7 +98,12 @@ jobs:
           done
           exit 1
 
-      - name: Commit & push
+      - name: Generate report only (non-main)
+        if: env.IS_MAIN != 'true'
+        run: python run_rebalance.py --report-only
+
+      - name: Commit & push (main only)
+        if: env.IS_MAIN == 'true'
         run: |
           set -euo pipefail
           git add reports data
@@ -102,5 +111,5 @@ jobs:
             echo "No changes"
             exit 0
           fi
-          git commit -m "chore: daily report $(date -u +%Y-%m-%d)"
+          git commit -m "chore: report $(date -u +%Y-%m-%d)"
           git push origin "$DATA_BRANCH" --force-with-lease
