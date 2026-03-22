@@ -46,6 +46,21 @@ run_collect.py        → 전략 신호 계산 + NAV 업데이트 (잔고 조회
 run_rebalance.py      → 전략 선택 → 포트폴리오 주문 생성 → KIS API 실행
 ```
 
+### 패키지 구조
+
+`app/` 내부는 서브패키지로 구성됩니다:
+
+| 서브패키지 | 주요 모듈 | 역할 |
+|---|---|---|
+| `app/assets/` | `assets.py`, `groups.py`, `ticker.py` | 자산 캐시, 그룹 조회, ETF 티커 정의 |
+| `app/data/` | `kis_api.py`, `data_utils.py`, `fred_api.py`, `yfinance_loader.py` | 외부 데이터 소스 |
+| `app/indicators/` | `momentum.py`, `sma.py`, `factor.py` | 기술 지표 계산 |
+| `app/execution/` | `portfolio.py`, `exchange.py`, `market.py` | 주문 생성·실행 |
+| `app/analytics/` | `csv_logger.py`, `report.py`, `backtest.py` | 로깅·리포트·백테스트 |
+| `app/strategies/` | 15개 전략 서브패키지 | 각 전략 구현체 |
+
+루트에 남는 모듈: `app/strategy.py`, `app/strategy_selector.py`, `app/config.py`, `app/constants.py`, `app/selection.py`
+
 ### 핵심 추상화 계층
 
 **전략 레이어** (`app/strategies/`)
@@ -56,20 +71,21 @@ run_rebalance.py      → 전략 선택 → 포트폴리오 주문 생성 → KI
 - 전략 등록: `@register("name")` 데코레이터로 `_REGISTRY`에 자동 등록
 - `app/strategies/__init__.py` 하단에 import를 추가해야 등록됨
 
-**자산 관리** (`app/assets.py`, `app/ticker.py`)
-- `Ticker` (str Enum): 모든 ETF 티커 정의. 각 티커는 거래소, 설명, 대체 티커(alternative chain) 보유
+**자산 관리** (`app/assets/`)
+- `Ticker` (str Enum, `app/assets/ticker.py`): 모든 ETF 티커 정의. 각 티커는 거래소, 설명, 대체 티커(alternative chain) 보유
   - 예: `TLT → EDV → SPTL` (주자산 → 저가 대체자산 체인)
-- `app/assets.py`: 전략의 `ASSETS` 딕셔너리를 파싱하여 캐시 구축
+- `app/assets/assets.py`: 전략의 `ASSETS` 딕셔너리를 파싱하여 캐시 구축
   - `reload_assets(data)` / `merge_assets(asset_dicts)`: 캐시 초기화
-  - `asset_groups(type)`: 타입별 그룹 목록 반환 (`"offensive"`, `"defensive"`, `"canary"`, `"fixed"` 등)
+  - `app/assets/groups.py`: `asset_groups(type)` 타입별 그룹 반환 (`"offensive"`, `"defensive"`, `"canary"`, `"fixed"` 등)
 - 각 전략의 `ASSETS`는 `Ticker` enum 값 리스트로 정의. 실행 시 `reload_assets()`로 캐시에 로드됨
 
 **전략 선택** (`app/strategy_selector.py`)
 - `corr_constrained` (권장): sharpe_12m 랭킹 후 상관관계 0.7 이상 전략 제외하여 top_n 선택
 - 포트폴리오 MDD 서킷 브레이커: `data/portfolio_nav.csv` 기준, 한계 초과 시 fallback_strategy로 강제 전환
 
-**포트폴리오 실행** (`app/portfolio.py`)
-- `choose_buy_ticker()`: priority 1 티커 → 예산 부족 시 alternative chain으로 폴백
+**포트폴리오 실행** (`app/execution/portfolio.py`)
+- `build_group_orders()`: 목표 비중 → 매수/매도 주문 생성 (priority 1 티커 → 예산 부족 시 alternative chain으로 폴백)
+- `execute_orders()`: KIS API로 주문 실행
 - 예비자산 승격: 예비자산 합산가치 ≥ 주자산 1주 가격이면 매도 후 주자산 매수
 
 ### 설정
@@ -104,7 +120,7 @@ run_rebalance.py      → 전략 선택 → 포트폴리오 주문 생성 → KI
 
 시그널 유형별 구현 패턴:
 - 모멘텀 점수: `scores` 딕셔너리 사용 (VAA, DAA, GEM 등)
-- SMA 추세: `app/sma.py` + `histories` (GTAA, Ivy, LAA)
-- 변동성/상관관계: `app/factor.py` + `histories` (FAA, EAA)
-- 거시경제 지표: `app/fred_api.py` (LAA)
+- SMA 추세: `app/indicators/sma.py` + `histories` (GTAA, Ivy, LAA)
+- 변동성/상관관계: `app/indicators/factor.py` + `histories` (FAA, EAA)
+- 거시경제 지표: `app/data/fred_api.py` (LAA)
 - 정적 배분: 고정 비중 딕셔너리 반환 (Permanent, All Weather)
