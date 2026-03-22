@@ -10,7 +10,7 @@ from app.assets.assets import exchange_for_ticker as asset_exchange
 from app.data.data_utils import extract_qty, extract_ticker
 from app.execution.exchange import set_exchange_for_order, set_exchange_for_ticker
 from app.assets.assets import all_groups as known_asset_groups
-from app.assets.groups import group_for_ticker, group_tier_index, group_tiers
+from app.assets.assets import group_for_ticker, group_tier_index, group_tiers
 from app.data.kis_api import KoreaInvestmentAPI
 
 

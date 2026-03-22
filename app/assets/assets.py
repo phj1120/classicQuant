@@ -115,6 +115,16 @@ def priority_for_ticker(ticker: str) -> int:
     return int(cache["ticker_to_priority"].get(ticker, 1))
 
 
+def group_tier_index(ticker: str) -> int:
+    """ticker의 대체자산 우선순위 인덱스 (0-based). 주자산=0, 대체1=1, …"""
+    return priority_for_ticker(ticker) - 1
+
+
+def group_map() -> Dict[str, List[List[str]]]:
+    """전체 그룹→티어 목록 딕셔너리."""
+    return {group: group_tiers(group) for group in all_groups()}
+
+
 def exchange_for_ticker(ticker: str) -> str:
     cache = _get_cache()
     return cache["ticker_to_exchange"].get(ticker, "NASD")

@@ -20,7 +20,7 @@ from app.analytics.backtest import run_all_backtests
 from app.config import build_kis_config, load_config, load_key, load_strategy_entries
 from app.analytics.csv_logger import save_ohlc_history
 from app.execution.exchange import set_exchange_for_ticker
-from app.assets.groups import group_tickers
+from app.assets.assets import group_tickers
 from app.data.kis_api import KoreaInvestmentAPI
 from app.strategies import get_strategy
 

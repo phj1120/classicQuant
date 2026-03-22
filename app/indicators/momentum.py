@@ -3,7 +3,7 @@ from typing import Dict, List, Optional
 from app.constants import LOOKBACK_DAYS
 from app.data.data_utils import parse_history
 from app.execution.exchange import set_exchange_for_ticker
-from app.assets.groups import group_tickers
+from app.assets.assets import group_tickers
 from app.data.kis_api import KoreaInvestmentAPI
 
 

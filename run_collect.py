@@ -31,7 +31,7 @@ from app.analytics.csv_logger import (
     save_strategy_signal,
 )
 from app.execution.exchange import set_exchange_for_ticker
-from app.assets.groups import group_tickers
+from app.assets.assets import group_tickers
 from app.data.kis_api import KoreaInvestmentAPI
 from app.data.data_utils import parse_history
 from app.indicators.momentum import get_momentum_scores
@@ -134,7 +134,7 @@ def main() -> None:
 
         try:
             strategy = get_strategy(name)
-            reload_assets(strategy.assets_file)
+            reload_assets(strategy.assets)
 
             universe = strategy.get_universe()
             _, all_returns, all_histories = get_momentum_scores(api, universe)

@@ -1,10 +1,10 @@
-import math
 from typing import ClassVar, Dict, List, Optional
 
-from app.assets.assets import asset_groups, group_tickers
+from app.assets.assets import asset_groups
 from app.indicators.factor import compute_correlation, compute_ewp_prices, compute_volatility
 from app.strategy import BaseStrategy
 from app.strategies import register
+from app.strategies.mixins import AnnualizedReturnScoreMixin
 from app.assets.ticker import Ticker
 
 # EAA 탄성 지수 (Keller & Butler 2014 기본값)
@@ -15,7 +15,7 @@ _TOP_N = 3  # 상위 N개 선택
 
 
 @register("eaa")
-class EAAStrategy(BaseStrategy):
+class EAAStrategy(AnnualizedReturnScoreMixin, BaseStrategy):
     """EAA (Elastic Asset Allocation) — Keller & Butler 2014.
 
     7개 글로벌 자산을 탄성 점수로 랭킹하여 상위 3개에 비례 투자.
@@ -30,20 +30,6 @@ class EAAStrategy(BaseStrategy):
 
     def get_universe(self) -> List[str]:
         return sorted(set(asset_groups("universe") + asset_groups("defensive")))
-
-    def score_from_returns(self, returns: Dict[str, Optional[float]]) -> Optional[float]:
-        """EAA: 연율화 수익률 평균."""
-        r1 = returns.get("r1m")
-        r3 = returns.get("r3m")
-        r6 = returns.get("r6m")
-        r12 = returns.get("r12m")
-        values = [v for v in (r1 * 12 if r1 is not None else None,
-                               r3 * 4 if r3 is not None else None,
-                               r6 * 2 if r6 is not None else None,
-                               r12) if v is not None]
-        if not values:
-            return None
-        return sum(values) / len(values)
 
     def _elastic_score(
         self,
@@ -80,12 +66,7 @@ class EAAStrategy(BaseStrategy):
         corrs: Dict[str, Optional[float]] = {g: None for g in valid}
 
         if histories:
-            group_prices: Dict[str, List[float]] = {}
-            for group in valid:
-                for ticker in group_tickers(group):
-                    if ticker in histories and len(histories[ticker]) > 20:
-                        group_prices[group] = histories[ticker]
-                        break
+            group_prices = self._load_group_prices(valid, histories)
 
             if len(group_prices) >= 2:
                 for g, p in group_prices.items():
