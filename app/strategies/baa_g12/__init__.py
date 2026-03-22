@@ -1,13 +1,10 @@
-from pathlib import Path
-from typing import Dict, List, Optional
+from typing import ClassVar, Dict, List, Optional
 
 from app.assets import asset_groups
 from app.strategy import BaseStrategy
 from app.strategies import register
+from app.ticker import Ticker
 
-ASSETS_FILE = Path(__file__).resolve().parent / "assets.json"
-
-# 캐너리 자산 (공격 universe 내에서 선택)
 _CANARY = ["SPY", "EEM"]
 
 
@@ -20,8 +17,14 @@ class BAAG12Strategy(BaseStrategy):
     수비 모드: 수비자산 (SHY/IEF/LQD) 중 1위에 100%
     """
 
-    def __init__(self, assets_file: Path | None = None):
-        super().__init__(assets_file or ASSETS_FILE)
+    ASSETS: ClassVar[Dict] = {
+        "offensive": [
+            Ticker.SPY, Ticker.IWM, Ticker.QQQ, Ticker.VGK, Ticker.EWJ,
+            Ticker.EEM, Ticker.VNQ, Ticker.DBC, Ticker.GLD, Ticker.TLT,
+            Ticker.HYG, Ticker.LQD,
+        ],
+        "defensive": [Ticker.SHY, Ticker.IEF, Ticker.LQD],
+    }
 
     def get_universe(self) -> List[str]:
         offensive = asset_groups("offensive")

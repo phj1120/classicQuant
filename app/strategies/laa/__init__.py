@@ -1,12 +1,10 @@
-from pathlib import Path
-from typing import Dict, List, Optional
+from typing import ClassVar, Dict, List, Optional
 
 from app.assets import asset_groups, group_tickers
 from app.sma import SMA_200D, is_above_sma
 from app.strategy import BaseStrategy
 from app.strategies import register
-
-ASSETS_FILE = Path(__file__).resolve().parent / "assets.json"
+from app.ticker import Ticker
 
 # LAA 기본 포트폴리오 (risk-on)
 _BASE_WEIGHTS: Dict[str, float] = {
@@ -29,8 +27,11 @@ class LAAStrategy(BaseStrategy):
     매우 낮은 거래 빈도 (~3년에 1회 전환)로 세금 효율적입니다.
     """
 
-    def __init__(self, assets_file: Path | None = None):
-        super().__init__(assets_file or ASSETS_FILE)
+    ASSETS: ClassVar[Dict] = {
+        "risk_on":  [Ticker.QQQ, Ticker.IWD, Ticker.GLD, Ticker.IEF],
+        "risk_off": [Ticker.SHY],
+        "trend":    [Ticker.SPY],
+    }
 
     def get_universe(self) -> List[str]:
         return sorted(

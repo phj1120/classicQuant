@@ -15,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from app.assets import reload_assets
+from app.assets import merge_assets, reload_assets
 from app.backtest import run_all_backtests
 from app.config import build_kis_config, load_config, load_key, load_strategy_entries
 from app.csv_logger import save_ohlc_history
@@ -27,7 +27,7 @@ from app.strategies import get_strategy
 
 def _collect_all_tickers(strategy_entries: list):
     """전략 목록에서 전체 티커 집합과 assets 파일 목록을 반환한다."""
-    from app.assets import merge_assets_files
+    
 
     all_tickers: set = set()
     assets_files = []
@@ -36,15 +36,15 @@ def _collect_all_tickers(strategy_entries: list):
         name = entry["name"]
         try:
             strategy = get_strategy(name)
-            reload_assets(strategy.assets_file)
-            assets_files.append(strategy.assets_file)
+            reload_assets(strategy.assets)
+            assets_files.append(strategy.assets)
             for group in strategy.get_universe():
                 for ticker in group_tickers(group):
                     all_tickers.add(ticker)
         except Exception as e:
             print(f"⚠️  {name} universe 로드 실패: {e}")
 
-    merge_assets_files(assets_files)
+    merge_assets(assets_files)
     return sorted(all_tickers)
 
 

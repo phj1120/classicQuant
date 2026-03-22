@@ -1,11 +1,9 @@
-from pathlib import Path
-from typing import Dict, List, Optional
+from typing import ClassVar, Dict, List, Optional
 
 from app.assets import asset_groups
 from app.strategy import BaseStrategy
 from app.strategies import register
-
-ASSETS_FILE = Path(__file__).resolve().parent / "assets.json"
+from app.ticker import Ticker
 
 
 @register("gem")
@@ -18,8 +16,10 @@ class GEMStrategy(BaseStrategy):
     is_active: SPY 또는 EFA의 모멘텀 >= 0
     """
 
-    def __init__(self, assets_file: Path | None = None):
-        super().__init__(assets_file or ASSETS_FILE)
+    ASSETS: ClassVar[Dict] = {
+        "offensive": [Ticker.SPY, Ticker.EFA],
+        "defensive": [Ticker.AGG],
+    }
 
     def get_universe(self) -> List[str]:
         offensive = asset_groups("offensive")

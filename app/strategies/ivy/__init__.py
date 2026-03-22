@@ -1,12 +1,10 @@
-from pathlib import Path
-from typing import Dict, List, Optional
+from typing import ClassVar, Dict, List, Optional
 
 from app.assets import asset_groups, group_tickers
 from app.sma import SMA_10M, is_above_sma
 from app.strategy import BaseStrategy
 from app.strategies import register
-
-ASSETS_FILE = Path(__file__).resolve().parent / "assets.json"
+from app.ticker import Ticker
 
 
 @register("ivy")
@@ -20,8 +18,10 @@ class IvyStrategy(BaseStrategy):
     ETF로 모방한 포트폴리오입니다.
     """
 
-    def __init__(self, assets_file: Path | None = None):
-        super().__init__(assets_file or ASSETS_FILE)
+    ASSETS: ClassVar[Dict] = {
+        "offensive": [Ticker.VTI, Ticker.EFA, Ticker.VNQ, Ticker.IEF, Ticker.DBC],
+        "defensive": [Ticker.SHY],
+    }
 
     def get_universe(self) -> List[str]:
         return sorted(set(asset_groups("offensive") + asset_groups("defensive")))

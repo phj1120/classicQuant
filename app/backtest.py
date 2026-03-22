@@ -42,7 +42,7 @@ def _compute_scores_at_date(
 ) -> Dict[str, Optional[float]]:
     """특정 날짜 기준 전략 universe의 모멘텀 점수를 계산한다."""
     from app.assets import group_tickers
-    reload_assets(strategy.assets_file)
+    reload_assets(strategy.assets)
 
     scores: Dict[str, Optional[float]] = {}
     for group in strategy.get_universe():
@@ -96,7 +96,7 @@ def run_backtest(
     """
     # 모든 관련 티커의 날짜 수집
     all_dates: List[str] = []
-    reload_assets(strategy.assets_file)
+    reload_assets(strategy.assets)
     from app.assets import group_tickers
     relevant_tickers = set()
     for group in strategy.get_universe():
@@ -127,7 +127,7 @@ def run_backtest(
     for i, date in enumerate(all_dates):
         # 이 날짜가 월말이면 리밸런싱
         if date in set(month_ends):
-            reload_assets(strategy.assets_file)
+            reload_assets(strategy.assets)
             scores = _compute_scores_at_date(strategy, price_dict, date)
             histories = _build_histories_at_date(strategy, price_dict, date)
             try:
@@ -145,7 +145,7 @@ def run_backtest(
 
         prev_date = all_dates[i - 1]
 
-        reload_assets(strategy.assets_file)
+        reload_assets(strategy.assets)
         daily_return = _calc_daily_return(
             current_targets, price_dict, prev_date, date
         )

@@ -13,7 +13,7 @@ from app.config import (
     load_selection_config,
     load_strategy_entries,
 )
-from app.assets import merge_assets_files, reload_assets
+from app.assets import merge_assets, reload_assets
 from app.csv_logger import save_holdings, save_momentum, save_ohlc_history, save_portfolio, save_strategy_signal
 from app.csv_logger import load_portfolio_nav, save_portfolio_nav
 from app.exchange import set_exchange_default
@@ -44,7 +44,7 @@ def _run_strategy(strategy_entry, api, prices, today):
     strategy = get_strategy(name)
 
     # 전략별 assets 로드
-    reload_assets(strategy.assets_file)
+    reload_assets(strategy.assets)
 
     print(f"\n{'='*50}")
     print(f"📊 전략: {name} (비중: {weight * 100:.0f}%)")
@@ -226,7 +226,7 @@ def main() -> None:
                 entry, api, prices, today,
             )
             all_results[entry["name"]] = (weighted_targets, scores, targets, strategy)
-            asset_files.append(strategy.assets_file)
+            asset_files.append(strategy.assets)
         except Exception as e:
             print(f"❌ {entry['name']} 전략 실패: {e}")
 
@@ -285,7 +285,7 @@ def main() -> None:
         return
 
     # Phase 4: 전체 전략의 assets를 병합 로드
-    merge_assets_files(asset_files)
+    merge_assets(asset_files)
 
     # Phase 5: 통합 주문 생성
     print(f"\n{'='*50}")

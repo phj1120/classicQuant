@@ -1,11 +1,9 @@
-from pathlib import Path
-from typing import Dict, List, Optional
+from typing import ClassVar, Dict, List, Optional
 
 from app.assets import asset_groups
 from app.strategy import BaseStrategy
 from app.strategies import register
-
-ASSETS_FILE = Path(__file__).resolve().parent / "assets.json"
+from app.ticker import Ticker
 
 _WEIGHTS: Dict[str, float] = {
     "SPY": 0.25,
@@ -23,8 +21,9 @@ class PermanentPortfolioStrategy(BaseStrategy):
     항상 active (정적 전략).
     """
 
-    def __init__(self, assets_file: Path | None = None):
-        super().__init__(assets_file or ASSETS_FILE)
+    ASSETS: ClassVar[Dict] = {
+        "fixed": [Ticker.SPY, Ticker.TLT, Ticker.GLD, Ticker.BIL],
+    }
 
     def get_universe(self) -> List[str]:
         return sorted(asset_groups("fixed"))

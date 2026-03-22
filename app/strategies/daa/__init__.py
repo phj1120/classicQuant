@@ -1,11 +1,9 @@
-from pathlib import Path
-from typing import Dict, List, Optional
+from typing import ClassVar, Dict, List, Optional
 
 from app.assets import asset_groups
 from app.strategy import BaseStrategy
 from app.strategies import register
-
-ASSETS_FILE = Path(__file__).resolve().parent / "assets.json"
+from app.ticker import Ticker
 
 
 @register("daa")
@@ -16,8 +14,15 @@ class DAAStrategy(BaseStrategy):
     아니면 수비자산 1위에 100% 투자.
     """
 
-    def __init__(self, assets_file: Path | None = None):
-        super().__init__(assets_file or ASSETS_FILE)
+    ASSETS: ClassVar[Dict] = {
+        "offensive": [
+            Ticker.SPY, Ticker.IWM, Ticker.QQQ, Ticker.VGK, Ticker.EWJ,
+            Ticker.EEM, Ticker.VNQ, Ticker.DBC, Ticker.GLD, Ticker.TLT,
+            Ticker.HYG, Ticker.LQD,
+        ],
+        "defensive": [Ticker.SHY, Ticker.IEF, Ticker.LQD],
+        "canary":    [Ticker.VWO, Ticker.BND],
+    }
 
     def get_universe(self) -> List[str]:
         offensive = asset_groups("offensive")

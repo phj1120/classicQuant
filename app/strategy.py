@@ -1,20 +1,16 @@
 from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import Dict, List, Optional
+from typing import ClassVar, Dict, List, Optional
 
 
 class BaseStrategy(ABC):
     """퀀트 전략의 추상 베이스 클래스."""
 
-    def __init__(self, assets_file: Path | None = None):
-        self._assets_file = assets_file
+    ASSETS: ClassVar[Dict]
 
     @property
-    def assets_file(self) -> Path:
-        """전략이 사용할 assets.json 경로. 지정하지 않으면 기본 경로."""
-        if self._assets_file:
-            return self._assets_file
-        return Path(__file__).resolve().parent / "strategies" / "daa" / "assets.json"
+    def assets(self) -> Dict:
+        """전략이 사용하는 자산 그룹 정의."""
+        return self.__class__.ASSETS
 
     @abstractmethod
     def get_universe(self) -> List[str]:

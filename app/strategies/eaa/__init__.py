@@ -1,13 +1,11 @@
 import math
-from pathlib import Path
-from typing import Dict, List, Optional
+from typing import ClassVar, Dict, List, Optional
 
 from app.assets import asset_groups, group_tickers
 from app.factor import compute_correlation, compute_ewp_prices, compute_volatility
 from app.strategy import BaseStrategy
 from app.strategies import register
-
-ASSETS_FILE = Path(__file__).resolve().parent / "assets.json"
+from app.ticker import Ticker
 
 # EAA 탄성 지수 (Keller & Butler 2014 기본값)
 _WR = 1.0   # 모멘텀 탄성
@@ -25,8 +23,10 @@ class EAAStrategy(BaseStrategy):
     절대 모멘텀 음수인 자산은 SHY(현금)로 대체합니다.
     """
 
-    def __init__(self, assets_file: Path | None = None):
-        super().__init__(assets_file or ASSETS_FILE)
+    ASSETS: ClassVar[Dict] = {
+        "universe":  [Ticker.SPY, Ticker.EFA, Ticker.EEM, Ticker.VNQ, Ticker.DBC, Ticker.GLD, Ticker.IEF],
+        "defensive": [Ticker.SHY],
+    }
 
     def get_universe(self) -> List[str]:
         return sorted(set(asset_groups("universe") + asset_groups("defensive")))

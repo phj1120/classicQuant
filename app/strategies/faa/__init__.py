@@ -1,12 +1,10 @@
-from pathlib import Path
-from typing import Dict, List, Optional
+from typing import ClassVar, Dict, List, Optional
 
 from app.assets import asset_groups, group_tickers
 from app.factor import compute_correlation, compute_ewp_prices, compute_volatility
 from app.strategy import BaseStrategy
 from app.strategies import register
-
-ASSETS_FILE = Path(__file__).resolve().parent / "assets.json"
+from app.ticker import Ticker
 
 # FAA 랭킹 가중치 (Keller & van Putten 2012)
 _WR = 1.0   # 모멘텀 가중치
@@ -26,8 +24,10 @@ class FAAStrategy(BaseStrategy):
     복합 랭킹 = wR×R_mom + wV×R_vol + wC×R_corr (낮을수록 좋음)
     """
 
-    def __init__(self, assets_file: Path | None = None):
-        super().__init__(assets_file or ASSETS_FILE)
+    ASSETS: ClassVar[Dict] = {
+        "universe":  [Ticker.SPY, Ticker.EFA, Ticker.EEM, Ticker.AGG, Ticker.DBC, Ticker.VNQ, Ticker.SHY],
+        "defensive": [Ticker.SHY],
+    }
 
     def get_universe(self) -> List[str]:
         return sorted(set(asset_groups("universe") + asset_groups("defensive")))
@@ -68,7 +68,6 @@ class FAAStrategy(BaseStrategy):
         corr_rank: Dict[str, int] = {g: len(valid) for g in valid}
 
         if histories:
-            # 각 그룹의 대표 ticker 가격 수집
             group_prices: Dict[str, List[float]] = {}
             for group in valid:
                 for ticker in group_tickers(group):
@@ -77,16 +76,13 @@ class FAAStrategy(BaseStrategy):
                         break
 
             if len(group_prices) >= 2:
-                # EWP (등비중 포트폴리오) 계산
                 ewp = compute_ewp_prices(group_prices)
 
-                # 변동성 랭킹 (낮을수록 좋음 → 낮은 rank)
                 vols = {g: compute_volatility(p) for g, p in group_prices.items()}
                 valid_vol = [g for g in valid if vols.get(g) is not None]
                 sorted_by_vol = sorted(valid_vol, key=lambda g: vols[g])
                 vol_rank.update({g: i + 1 for i, g in enumerate(sorted_by_vol)})
 
-                # 상관관계 랭킹 (낮을수록 좋음 → 낮은 rank)
                 if ewp:
                     corrs = {
                         g: compute_correlation(group_prices[g], ewp)

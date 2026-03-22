@@ -296,7 +296,7 @@ def _select_by_offensive_mode(
         scores = scores_by_strategy.get(name, {})
         # 전략별 assets 캐시를 복원 후 판단
         from app.assets import reload_assets
-        reload_assets(strategy.assets_file)
+        reload_assets(strategy.assets)
         offensive = strategy.is_offensive(scores)
 
         if not offensive:
