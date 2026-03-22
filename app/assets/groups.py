@@ -1,6 +1,6 @@
 from typing import Dict, List
 
-from app.assets import (
+from app.assets.assets import (
     all_groups,
     group_for_ticker as _group_for_ticker,
     group_tiers as _group_tiers,

@@ -1,9 +1,9 @@
 from typing import ClassVar, Dict, List, Optional
 
-from app.assets import asset_groups
+from app.assets.assets import asset_groups
 from app.strategy import BaseStrategy
 from app.strategies import register
-from app.ticker import Ticker
+from app.assets.ticker import Ticker
 
 _CANARY = ["SPY", "EEM"]
 

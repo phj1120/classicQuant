@@ -13,10 +13,10 @@ from app.config import (
     load_selection_config,
     load_strategy_entries,
 )
-from app.assets import merge_assets, reload_assets
-from app.csv_logger import save_holdings, save_momentum, save_ohlc_history, save_portfolio, save_strategy_signal
-from app.csv_logger import load_portfolio_nav, save_portfolio_nav
-from app.exchange import set_exchange_default
+from app.assets.assets import merge_assets, reload_assets
+from app.analytics.csv_logger import save_holdings, save_momentum, save_ohlc_history, save_portfolio, save_strategy_signal
+from app.analytics.csv_logger import load_portfolio_nav, save_portfolio_nav
+from app.execution.exchange import set_exchange_default
 from datetime import datetime
 
 try:
@@ -25,13 +25,13 @@ except ImportError:  # pragma: no cover
     ZoneInfo = None
 
 from app.constants import US_MARKET_TZ
-from app.kis_api import KoreaInvestmentAPI
-from app.market import is_us_market_holiday
-from app.data_utils import parse_history
-from app.momentum import get_momentum_scores
-from app.groups import group_tickers
-from app.portfolio import build_group_orders, execute_orders, get_holdings_all_exchanges, get_prices
-from app.report import write_report
+from app.data.kis_api import KoreaInvestmentAPI
+from app.execution.market import is_us_market_holiday
+from app.data.data_utils import parse_history
+from app.indicators.momentum import get_momentum_scores
+from app.assets.groups import group_tickers
+from app.execution.portfolio import build_group_orders, execute_orders, get_holdings_all_exchanges, get_prices
+from app.analytics.report import write_report
 from app.strategy_selector import select_active_strategies
 from app.strategies import get_strategy
 
@@ -117,7 +117,7 @@ def _check_portfolio_mdd(selection_cfg: dict) -> tuple:
 
 def _update_portfolio_nav(today: str, active_entries: list) -> None:
     """active 전략의 최근 daily_return 가중 평균으로 portfolio_nav.csv를 업데이트."""
-    from app.csv_logger import load_strategy_nav
+    from app.analytics.csv_logger import load_strategy_nav
 
     if not active_entries:
         return
@@ -213,7 +213,7 @@ def main() -> None:
         print(f"📉 포트폴리오 낙폭: {portfolio_dd:.1%} (한도: {mdd_limit:.1%}) {status}")
 
     # CSV 로깅: 보유 현황
-    from app.groups import group_for_ticker
+    from app.assets.groups import group_for_ticker
     save_holdings(today, holdings_detail, prices, group_for_ticker)
 
     # Phase 1: 전략별 신호 수집 (전체 전략)

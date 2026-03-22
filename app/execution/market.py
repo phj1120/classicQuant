@@ -16,7 +16,7 @@ from app.constants import (
     US_MARKET_OPEN_MINUTE,
     US_MARKET_TZ,
 )
-from app.kis_api import KoreaInvestmentAPI
+from app.data.kis_api import KoreaInvestmentAPI
 
 
 def _is_us_row(row: Dict) -> bool:

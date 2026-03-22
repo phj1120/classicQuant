@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional
 
-from app.ticker import Ticker
+from app.assets.ticker import Ticker
 
 _CACHE: Optional[Dict[str, object]] = None
 

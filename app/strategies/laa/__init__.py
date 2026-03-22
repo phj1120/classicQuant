@@ -1,10 +1,10 @@
 from typing import ClassVar, Dict, List, Optional
 
-from app.assets import asset_groups, group_tickers
-from app.sma import SMA_200D, is_above_sma
+from app.assets.assets import asset_groups, group_tickers
+from app.indicators.sma import SMA_200D, is_above_sma
 from app.strategy import BaseStrategy
 from app.strategies import register
-from app.ticker import Ticker
+from app.assets.ticker import Ticker
 
 # LAA 기본 포트폴리오 (risk-on)
 _BASE_WEIGHTS: Dict[str, float] = {
@@ -81,7 +81,7 @@ class LAAStrategy(BaseStrategy):
     def _unemployment_rising(self) -> bool:
         """실업률 > 12개월 MA이면 True. FRED API 조회 실패 시 False."""
         try:
-            from app.fred_api import get_unemployment_signal
+            from app.data.fred_api import get_unemployment_signal
             result = get_unemployment_signal(lookback_months=12)
             return result is True
         except Exception as e:

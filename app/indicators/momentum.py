@@ -1,10 +1,10 @@
 from typing import Dict, List, Optional
 
 from app.constants import LOOKBACK_DAYS
-from app.data_utils import parse_history
-from app.exchange import set_exchange_for_ticker
-from app.groups import group_tickers
-from app.kis_api import KoreaInvestmentAPI
+from app.data.data_utils import parse_history
+from app.execution.exchange import set_exchange_for_ticker
+from app.assets.groups import group_tickers
+from app.data.kis_api import KoreaInvestmentAPI
 
 
 def compute_return(prices: List[float], lookback: int) -> Optional[float]:

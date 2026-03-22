@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 
 HOLDINGS_CSV = DATA_DIR / "holdings.csv"
 MOMENTUM_CSV = DATA_DIR / "momentum.csv"
@@ -207,7 +207,7 @@ def load_ohlc_prices(tickers: Optional[List[str]] = None) -> Dict[str, Dict[str,
 
 
 def save_ohlc_history(ticker: str, history_data: List[Dict]) -> None:
-    from app.data_utils import extract_date, extract_price
+    from app.data.data_utils import extract_date, extract_price
 
     new_rows = []
     for row in history_data:

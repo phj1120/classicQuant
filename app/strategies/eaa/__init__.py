@@ -1,11 +1,11 @@
 import math
 from typing import ClassVar, Dict, List, Optional
 
-from app.assets import asset_groups, group_tickers
-from app.factor import compute_correlation, compute_ewp_prices, compute_volatility
+from app.assets.assets import asset_groups, group_tickers
+from app.indicators.factor import compute_correlation, compute_ewp_prices, compute_volatility
 from app.strategy import BaseStrategy
 from app.strategies import register
-from app.ticker import Ticker
+from app.assets.ticker import Ticker
 
 # EAA 탄성 지수 (Keller & Butler 2014 기본값)
 _WR = 1.0   # 모멘텀 탄성

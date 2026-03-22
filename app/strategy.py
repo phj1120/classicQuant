@@ -48,7 +48,7 @@ class BaseStrategy(ABC):
         기본 구현은 select_targets() 결과가 offensive 그룹에 속하는지 확인.
         정적 전략(Permanent, All Weather)은 True를 반환하도록 오버라이드.
         """
-        from app.assets import asset_groups
+        from app.assets.assets import asset_groups
         targets = self.select_targets(scores)
         offensive = set(asset_groups("offensive"))
         return any(t in offensive for t in targets)

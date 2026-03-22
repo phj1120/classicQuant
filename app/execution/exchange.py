@@ -1,6 +1,6 @@
-from app.assets import exchange_for_ticker
+from app.assets.assets import exchange_for_ticker
 from app.constants import KIS_EXCHANGE_CODE
-from app.kis_api import KoreaInvestmentAPI
+from app.data.kis_api import KoreaInvestmentAPI
 
 
 def set_exchange_for_ticker(api: KoreaInvestmentAPI, ticker: str) -> None:

@@ -19,9 +19,9 @@ from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from app.assets import reload_assets
+from app.assets.assets import reload_assets
 from app.config import build_kis_config, load_config, load_key, load_strategy_entries
-from app.csv_logger import (
+from app.analytics.csv_logger import (
     load_ohlc_prices,
     load_strategy_nav,
     load_strategy_signals,
@@ -30,11 +30,11 @@ from app.csv_logger import (
     save_strategy_nav,
     save_strategy_signal,
 )
-from app.exchange import set_exchange_for_ticker
-from app.groups import group_tickers
-from app.kis_api import KoreaInvestmentAPI
-from app.data_utils import parse_history
-from app.momentum import get_momentum_scores
+from app.execution.exchange import set_exchange_for_ticker
+from app.assets.groups import group_tickers
+from app.data.kis_api import KoreaInvestmentAPI
+from app.data.data_utils import parse_history
+from app.indicators.momentum import get_momentum_scores
 from app.strategies import get_strategy
 
 

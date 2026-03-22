@@ -129,7 +129,7 @@ def _select_by_nav_score(
     mdd_threshold: Optional[float],
 ) -> List[Tuple[str, float]]:
     """strategy_nav.csv NAV 데이터 기반 다양한 기준으로 전략 선택."""
-    from app.csv_logger import load_strategy_nav
+    from app.analytics.csv_logger import load_strategy_nav
 
     all_nav = load_strategy_nav()
     scored: List[Tuple[str, float, float]] = []  # (name, score, drawdown)
@@ -281,7 +281,7 @@ def _select_by_offensive_mode(
     mdd_threshold: Optional[float],
 ) -> List[Tuple[str, float]]:
     """현재 전략 신호(offensive/defensive)로 active 전략 선택."""
-    from app.csv_logger import load_strategy_nav
+    from app.analytics.csv_logger import load_strategy_nav
 
     all_nav = load_strategy_nav() if mdd_threshold is not None else {}
 
@@ -295,7 +295,7 @@ def _select_by_offensive_mode(
 
         scores = scores_by_strategy.get(name, {})
         # 전략별 assets 캐시를 복원 후 판단
-        from app.assets import reload_assets
+        from app.assets.assets import reload_assets
         reload_assets(strategy.assets)
         offensive = strategy.is_offensive(scores)
 

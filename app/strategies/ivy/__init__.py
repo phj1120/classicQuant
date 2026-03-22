@@ -1,10 +1,10 @@
 from typing import ClassVar, Dict, List, Optional
 
-from app.assets import asset_groups, group_tickers
-from app.sma import SMA_10M, is_above_sma
+from app.assets.assets import asset_groups, group_tickers
+from app.indicators.sma import SMA_10M, is_above_sma
 from app.strategy import BaseStrategy
 from app.strategies import register
-from app.ticker import Ticker
+from app.assets.ticker import Ticker
 
 
 @register("ivy")

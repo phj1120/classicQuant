@@ -15,13 +15,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from app.assets import merge_assets, reload_assets
-from app.backtest import run_all_backtests
+from app.assets.assets import merge_assets, reload_assets
+from app.analytics.backtest import run_all_backtests
 from app.config import build_kis_config, load_config, load_key, load_strategy_entries
-from app.csv_logger import save_ohlc_history
-from app.exchange import set_exchange_for_ticker
-from app.groups import group_tickers
-from app.kis_api import KoreaInvestmentAPI
+from app.analytics.csv_logger import save_ohlc_history
+from app.execution.exchange import set_exchange_for_ticker
+from app.assets.groups import group_tickers
+from app.data.kis_api import KoreaInvestmentAPI
 from app.strategies import get_strategy
 
 
@@ -50,7 +50,7 @@ def _collect_all_tickers(strategy_entries: list):
 
 def collect_price_history_yfinance(strategy_entries: list) -> None:
     """Yahoo Finance로 전체 전략 자산의 장기 가격 데이터를 수집한다 (최대 20년+)."""
-    from app.yfinance_loader import fetch_all_tickers
+    from app.data.yfinance_loader import fetch_all_tickers
 
     sorted_tickers = _collect_all_tickers(strategy_entries)
 

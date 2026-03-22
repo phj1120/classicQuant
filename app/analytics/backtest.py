@@ -7,11 +7,11 @@
 from collections import defaultdict
 from typing import Dict, List, Optional, Tuple
 
-from app.assets import reload_assets
+from app.assets.assets import reload_assets
 from app.constants import LOOKBACK_DAYS
-from app.csv_logger import load_ohlc_prices, save_strategy_nav
-from app.data_utils import parse_history
-from app.momentum import compute_momentum
+from app.analytics.csv_logger import load_ohlc_prices, save_strategy_nav
+from app.data.data_utils import parse_history
+from app.indicators.momentum import compute_momentum
 from app.strategy import BaseStrategy
 
 
@@ -41,7 +41,7 @@ def _compute_scores_at_date(
     date: str,
 ) -> Dict[str, Optional[float]]:
     """특정 날짜 기준 전략 universe의 모멘텀 점수를 계산한다."""
-    from app.assets import group_tickers
+    from app.assets.assets import group_tickers
     reload_assets(strategy.assets)
 
     scores: Dict[str, Optional[float]] = {}
@@ -67,7 +67,7 @@ def _build_histories_at_date(
 
     SMA·변동성·상관관계 계산이 필요한 전략(GTAA, Ivy, FAA, EAA, LAA)에 사용됩니다.
     """
-    from app.assets import group_tickers
+    from app.assets.assets import group_tickers
     histories: Dict[str, List[float]] = {}
     for group in strategy.get_universe():
         for ticker in group_tickers(group):
@@ -97,7 +97,7 @@ def run_backtest(
     # 모든 관련 티커의 날짜 수집
     all_dates: List[str] = []
     reload_assets(strategy.assets)
-    from app.assets import group_tickers
+    from app.assets.assets import group_tickers
     relevant_tickers = set()
     for group in strategy.get_universe():
         for ticker in group_tickers(group):
@@ -163,7 +163,7 @@ def _calc_daily_return(
     curr_date: str,
 ) -> float:
     """전날 → 오늘의 가중 수익률 계산."""
-    from app.assets import group_tickers
+    from app.assets.assets import group_tickers
     total_return = 0.0
     total_weight = 0.0
 
@@ -188,7 +188,7 @@ def run_all_backtests(
 ) -> None:
     """모든 전략의 백테스트를 실행하고 strategy_nav.csv에 저장한다."""
     from app.strategies import get_strategy
-    from app.csv_logger import load_strategy_nav
+    from app.analytics.csv_logger import load_strategy_nav
 
     # 기존 NAV 데이터 확인
     existing_nav = load_strategy_nav()
