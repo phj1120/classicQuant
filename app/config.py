@@ -9,6 +9,7 @@ from app.constants import (
     DEFAULT_EXECUTION_OFFSET_MINUTES,
     DEFAULT_EXECUTION_WINDOW_MINUTES,
     DEFAULT_MIN_TRADE_VALUE_USD,
+    DEFAULT_REBALANCE_THRESHOLD_PCT,
     KIS_BASE_URL,
     KIS_EXCHANGE_CODE,
 )
@@ -69,7 +70,7 @@ def build_strategy_config(raw: Dict) -> Dict:
     return {
         "cash_buffer_pct": DEFAULT_CASH_BUFFER_PCT,
         "min_trade_value_usd": DEFAULT_MIN_TRADE_VALUE_USD,
-        "rebalance_threshold_pct": 0.0,
+        "rebalance_threshold_pct": DEFAULT_REBALANCE_THRESHOLD_PCT,
         **raw.get("strategy", {}),
     }
 

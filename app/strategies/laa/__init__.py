@@ -1,12 +1,10 @@
-from pathlib import Path
-from typing import Dict, List, Optional
+from typing import ClassVar, Dict, List, Optional
 
-from app.assets import asset_groups, group_tickers
-from app.sma import SMA_200D, is_above_sma
+from app.assets.assets import asset_groups, group_tickers
+from app.indicators.sma import SMA_200D, is_above_sma
 from app.strategy import BaseStrategy
 from app.strategies import register
-
-ASSETS_FILE = Path(__file__).resolve().parent / "assets.json"
+from app.assets.ticker import Ticker
 
 # LAA 기본 포트폴리오 (risk-on)
 _BASE_WEIGHTS: Dict[str, float] = {
@@ -29,8 +27,11 @@ class LAAStrategy(BaseStrategy):
     매우 낮은 거래 빈도 (~3년에 1회 전환)로 세금 효율적입니다.
     """
 
-    def __init__(self, assets_file: Path | None = None):
-        super().__init__(assets_file or ASSETS_FILE)
+    ASSETS: ClassVar[Dict] = {
+        "risk_on":  [Ticker.QQQ, Ticker.IWD, Ticker.GLD, Ticker.IEF],
+        "risk_off": [Ticker.SHY],
+        "trend":    [Ticker.SPY],
+    }
 
     def get_universe(self) -> List[str]:
         return sorted(
@@ -80,7 +81,7 @@ class LAAStrategy(BaseStrategy):
     def _unemployment_rising(self) -> bool:
         """실업률 > 12개월 MA이면 True. FRED API 조회 실패 시 False."""
         try:
-            from app.fred_api import get_unemployment_signal
+            from app.data.fred_api import get_unemployment_signal
             result = get_unemployment_signal(lookback_months=12)
             return result is True
         except Exception as e:

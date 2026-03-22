@@ -1,15 +1,19 @@
-import json
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
-
-ASSETS_PATH = Path(__file__).resolve().parent / "strategies" / "daa" / "assets.json"
+from app.assets.ticker import Ticker
 
 _CACHE: Optional[Dict[str, object]] = None
 
 
-def _load_raw(path: Path) -> Dict:
-    return json.loads(path.read_text(encoding="utf-8"))
+def _build_candidates(primary: Ticker) -> List[Dict]:
+    candidates = [{"ticker": primary.value, "exchange_code": primary.exchange, "priority": 1}]
+    priority = 2
+    current = primary.alternative
+    while current is not None:
+        candidates.append({"ticker": current.value, "exchange_code": current.exchange, "priority": priority})
+        priority += 1
+        current = current.alternative
+    return candidates
 
 
 def _build_maps(data: Dict) -> Dict[str, object]:
@@ -20,17 +24,18 @@ def _build_maps(data: Dict) -> Dict[str, object]:
     ticker_to_exchange: Dict[str, str] = {}
 
     for asset_type, groups in data.items():
-        type_to_groups[asset_type] = list(groups.keys())
-        for group, candidates in groups.items():
-            bucket = group_to_candidates.setdefault(group, [])
-            for item in candidates:
-                ticker = item["ticker"]
-                if ticker in ticker_to_group:
+        type_to_groups[asset_type] = [Ticker(g).value for g in groups]
+        for primary in groups:
+            t_primary = Ticker(primary)
+            bucket = group_to_candidates.setdefault(t_primary.value, [])
+            for item in _build_candidates(t_primary):
+                t = item["ticker"]
+                if t in ticker_to_group:
                     continue
                 bucket.append(item)
-                ticker_to_group[ticker] = group
-                ticker_to_priority[ticker] = int(item.get("priority", 1))
-                ticker_to_exchange[ticker] = item.get("exchange_code", "NASD")
+                ticker_to_group[t] = t_primary.value
+                ticker_to_priority[t] = int(item["priority"])
+                ticker_to_exchange[t] = item["exchange_code"]
 
     for group, candidates in group_to_candidates.items():
         candidates.sort(key=lambda c: (int(c.get("priority", 1)), c.get("ticker", "")))
@@ -45,31 +50,26 @@ def _build_maps(data: Dict) -> Dict[str, object]:
     }
 
 
-def _get_cache(path: Path = ASSETS_PATH) -> Dict[str, object]:
-    global _CACHE
+def _get_cache() -> Dict[str, object]:
     if _CACHE is None:
-        _CACHE = _build_maps(_load_raw(path))
+        raise RuntimeError("assets cache not initialized — call reload_assets() first")
     return _CACHE
 
 
-def reload_assets(path: Path = ASSETS_PATH) -> None:
+def reload_assets(data: Dict) -> None:
     global _CACHE
-    _CACHE = _build_maps(_load_raw(path))
+    _CACHE = _build_maps(data)
 
 
-def merge_assets_files(paths: List[Path]) -> None:
-    """여러 전략의 assets.json을 병합하여 캐시에 로드한다."""
+def merge_assets(asset_dicts: List[Dict]) -> None:
+    """여러 전략의 ASSETS를 병합하여 캐시에 로드한다."""
     merged: Dict = {}
-    for path in paths:
-        raw = _load_raw(path)
-        for asset_type, groups in raw.items():
-            merged_type = merged.setdefault(asset_type, {})
-            for group, candidates in groups.items():
-                existing = merged_type.setdefault(group, [])
-                existing_tickers = {c["ticker"] for c in existing}
-                for c in candidates:
-                    if c["ticker"] not in existing_tickers:
-                        existing.append(c)
+    for data in asset_dicts:
+        for asset_type, groups in data.items():
+            merged_type = merged.setdefault(asset_type, [])
+            for ticker in groups:
+                if ticker not in merged_type:
+                    merged_type.append(ticker)
     global _CACHE
     _CACHE = _build_maps(merged)
 
@@ -113,6 +113,16 @@ def group_for_ticker(ticker: str) -> str:
 def priority_for_ticker(ticker: str) -> int:
     cache = _get_cache()
     return int(cache["ticker_to_priority"].get(ticker, 1))
+
+
+def group_tier_index(ticker: str) -> int:
+    """ticker의 대체자산 우선순위 인덱스 (0-based). 주자산=0, 대체1=1, …"""
+    return priority_for_ticker(ticker) - 1
+
+
+def group_map() -> Dict[str, List[List[str]]]:
+    """전체 그룹→티어 목록 딕셔너리."""
+    return {group: group_tiers(group) for group in all_groups()}
 
 
 def exchange_for_ticker(ticker: str) -> str:

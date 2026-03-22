@@ -13,10 +13,10 @@ from app.config import (
     load_selection_config,
     load_strategy_entries,
 )
-from app.assets import merge_assets_files, reload_assets
-from app.csv_logger import save_holdings, save_momentum, save_ohlc_history, save_portfolio, save_strategy_signal
-from app.csv_logger import load_portfolio_nav, save_portfolio_nav
-from app.exchange import set_exchange_default
+from app.assets.assets import merge_assets, reload_assets
+from app.analytics.csv_logger import save_holdings, save_momentum, save_ohlc_history, save_portfolio, save_strategy_signal
+from app.analytics.csv_logger import load_portfolio_nav, save_portfolio_nav
+from app.execution.exchange import set_exchange_default
 from datetime import datetime
 
 try:
@@ -24,14 +24,19 @@ try:
 except ImportError:  # pragma: no cover
     ZoneInfo = None
 
-from app.constants import US_MARKET_TZ
-from app.kis_api import KoreaInvestmentAPI
-from app.market import is_us_market_holiday
-from app.data_utils import parse_history
-from app.momentum import get_momentum_scores
-from app.groups import group_tickers
-from app.portfolio import build_group_orders, execute_orders, get_holdings_all_exchanges, get_prices
-from app.report import write_report
+from app.constants import (
+    DEFAULT_CASH_BUFFER_PCT,
+    DEFAULT_MIN_TRADE_VALUE_USD,
+    DEFAULT_REBALANCE_THRESHOLD_PCT,
+    US_MARKET_TZ,
+)
+from app.data.kis_api import KoreaInvestmentAPI
+from app.execution.market import is_us_market_holiday
+from app.data.data_utils import parse_history
+from app.indicators.momentum import get_momentum_scores
+from app.assets.assets import group_tickers
+from app.execution.portfolio import build_group_orders, execute_orders, get_holdings_all_exchanges, get_prices
+from app.analytics.report import write_report
 from app.strategy_selector import select_active_strategies
 from app.strategies import get_strategy
 
@@ -44,7 +49,7 @@ def _run_strategy(strategy_entry, api, prices, today):
     strategy = get_strategy(name)
 
     # 전략별 assets 로드
-    reload_assets(strategy.assets_file)
+    reload_assets(strategy.assets)
 
     print(f"\n{'='*50}")
     print(f"📊 전략: {name} (비중: {weight * 100:.0f}%)")
@@ -117,7 +122,7 @@ def _check_portfolio_mdd(selection_cfg: dict) -> tuple:
 
 def _update_portfolio_nav(today: str, active_entries: list) -> None:
     """active 전략의 최근 daily_return 가중 평균으로 portfolio_nav.csv를 업데이트."""
-    from app.csv_logger import load_strategy_nav
+    from app.analytics.csv_logger import load_strategy_nav
 
     if not active_entries:
         return
@@ -213,7 +218,7 @@ def main() -> None:
         print(f"📉 포트폴리오 낙폭: {portfolio_dd:.1%} (한도: {mdd_limit:.1%}) {status}")
 
     # CSV 로깅: 보유 현황
-    from app.groups import group_for_ticker
+    from app.assets.assets import group_for_ticker
     save_holdings(today, holdings_detail, prices, group_for_ticker)
 
     # Phase 1: 전략별 신호 수집 (전체 전략)
@@ -226,7 +231,7 @@ def main() -> None:
                 entry, api, prices, today,
             )
             all_results[entry["name"]] = (weighted_targets, scores, targets, strategy)
-            asset_files.append(strategy.assets_file)
+            asset_files.append(strategy.assets)
         except Exception as e:
             print(f"❌ {entry['name']} 전략 실패: {e}")
 
@@ -254,6 +259,11 @@ def main() -> None:
     # 서킷 브레이커: 포트폴리오 MDD 한도 초과 시 fallback 강제 적용
     if circuit_triggered:
         fallback_name = selection_cfg.get("fallback_strategy", "permanent")
+        if fallback_name not in all_results:
+            raise RuntimeError(
+                f"⛔ 서킷 브레이커 발동 중 fallback 전략 '{fallback_name}'이 실행되지 않았습니다. "
+                f"config의 fallback_strategy가 strategies 목록에 포함되어 있는지 확인하세요."
+            )
         print(f"\n⛔ 포트폴리오 MDD 서킷 브레이커 → {fallback_name} 단독 운용")
         active_entries = [{"name": fallback_name, "weight": 1.0}]
 
@@ -285,7 +295,7 @@ def main() -> None:
         return
 
     # Phase 4: 전체 전략의 assets를 병합 로드
-    merge_assets_files(asset_files)
+    merge_assets(asset_files)
 
     # Phase 5: 통합 주문 생성
     print(f"\n{'='*50}")
@@ -299,9 +309,9 @@ def main() -> None:
         targets=merged_targets,
         prices=prices,
         total_equity=total_equity,
-        cash_buffer_pct=float(strategy_cfg.get("cash_buffer_pct", 0.0)),
-        min_trade_value_usd=float(strategy_cfg.get("min_trade_value_usd", 5.0)),
-        rebalance_threshold_pct=float(strategy_cfg.get("rebalance_threshold_pct", 0.0)),
+        cash_buffer_pct=float(strategy_cfg.get("cash_buffer_pct", DEFAULT_CASH_BUFFER_PCT)),
+        min_trade_value_usd=float(strategy_cfg.get("min_trade_value_usd", DEFAULT_MIN_TRADE_VALUE_USD)),
+        rebalance_threshold_pct=float(strategy_cfg.get("rebalance_threshold_pct", DEFAULT_REBALANCE_THRESHOLD_PCT)),
     )
 
     if selected_tickers:

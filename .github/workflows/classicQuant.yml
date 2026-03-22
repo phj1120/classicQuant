@@ -93,6 +93,21 @@ jobs:
         if: env.CONFIG_JSON != ''
         run: echo "$CONFIG_JSON" > config.json
 
+      - name: Run collect (main only)
+        if: env.IS_MAIN == 'true'
+        run: |
+          set -euo pipefail
+          RETRY_DELAY=30
+          for i in 1 2 3 4 5; do
+            echo "Attempt $i/5"
+            if python run_collect.py; then
+              exit 0
+            fi
+            sleep $RETRY_DELAY
+            RETRY_DELAY=$((RETRY_DELAY * 2))
+          done
+          exit 1
+
       - name: Run rebalance (main only)
         if: env.IS_MAIN == 'true'
         run: |
@@ -100,12 +115,14 @@ jobs:
           LOG_DIR="logs"
           mkdir -p "$LOG_DIR"
           LOG_FILE="$LOG_DIR/$(date -u +%Y%m%dT%H%M%SZ).log"
+          RETRY_DELAY=30
           for i in 1 2 3 4 5; do
             echo "Attempt $i/5"
             if python run_rebalance.py | tee "$LOG_FILE"; then
               exit 0
             fi
-            sleep 30
+            sleep $RETRY_DELAY
+            RETRY_DELAY=$((RETRY_DELAY * 2))
           done
           exit 1
 

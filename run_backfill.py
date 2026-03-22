@@ -15,19 +15,19 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from app.assets import reload_assets
-from app.backtest import run_all_backtests
+from app.assets.assets import merge_assets, reload_assets
+from app.analytics.backtest import run_all_backtests
 from app.config import build_kis_config, load_config, load_key, load_strategy_entries
-from app.csv_logger import save_ohlc_history
-from app.exchange import set_exchange_for_ticker
-from app.groups import group_tickers
-from app.kis_api import KoreaInvestmentAPI
+from app.analytics.csv_logger import save_ohlc_history
+from app.execution.exchange import set_exchange_for_ticker
+from app.assets.assets import group_tickers
+from app.data.kis_api import KoreaInvestmentAPI
 from app.strategies import get_strategy
 
 
 def _collect_all_tickers(strategy_entries: list):
     """전략 목록에서 전체 티커 집합과 assets 파일 목록을 반환한다."""
-    from app.assets import merge_assets_files
+    
 
     all_tickers: set = set()
     assets_files = []
@@ -36,21 +36,21 @@ def _collect_all_tickers(strategy_entries: list):
         name = entry["name"]
         try:
             strategy = get_strategy(name)
-            reload_assets(strategy.assets_file)
-            assets_files.append(strategy.assets_file)
+            reload_assets(strategy.assets)
+            assets_files.append(strategy.assets)
             for group in strategy.get_universe():
                 for ticker in group_tickers(group):
                     all_tickers.add(ticker)
         except Exception as e:
             print(f"⚠️  {name} universe 로드 실패: {e}")
 
-    merge_assets_files(assets_files)
+    merge_assets(assets_files)
     return sorted(all_tickers)
 
 
 def collect_price_history_yfinance(strategy_entries: list) -> None:
     """Yahoo Finance로 전체 전략 자산의 장기 가격 데이터를 수집한다 (최대 20년+)."""
-    from app.yfinance_loader import fetch_all_tickers
+    from app.data.yfinance_loader import fetch_all_tickers
 
     sorted_tickers = _collect_all_tickers(strategy_entries)
 

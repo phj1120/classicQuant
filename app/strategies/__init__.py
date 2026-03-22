@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import Dict, Type
 
 from app.strategy import BaseStrategy
@@ -14,12 +13,12 @@ def register(name: str):
     return decorator
 
 
-def get_strategy(name: str, assets_file: Path | None = None) -> BaseStrategy:
+def get_strategy(name: str) -> BaseStrategy:
     """이름으로 전략 인스턴스를 생성하여 반환한다."""
     if name not in _REGISTRY:
         available = ", ".join(_REGISTRY.keys()) or "(없음)"
         raise ValueError(f"알 수 없는 전략: '{name}'. 사용 가능: {available}")
-    return _REGISTRY[name](assets_file=assets_file)
+    return _REGISTRY[name]()
 
 
 # 전략 모듈을 임포트하여 @register 데코레이터가 실행되도록 한다.

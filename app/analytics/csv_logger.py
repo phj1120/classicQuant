@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 
 HOLDINGS_CSV = DATA_DIR / "holdings.csv"
 MOMENTUM_CSV = DATA_DIR / "momentum.csv"
@@ -24,6 +24,28 @@ PORTFOLIO_NAV_HEADER = ["date", "nav", "daily_return"]
 
 def _ensure_dir() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _existing_dates_in_csv(
+    path: Path,
+    date_col: str,
+    filter_col: Optional[str] = None,
+    filter_val: Optional[str] = None,
+) -> set:
+    """CSV 파일에서 기존 날짜 집합을 반환한다.
+
+    filter_col/filter_val 지정 시 해당 컬럼 값이 일치하는 행만 검사한다.
+    파일이 없거나 비어 있으면 빈 set을 반환한다.
+    """
+    if not path.exists() or path.stat().st_size == 0:
+        return set()
+    with open(path, "r", newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        return {
+            row.get(date_col, "")
+            for row in reader
+            if filter_col is None or row.get(filter_col) == filter_val
+        }
 
 
 def _append_rows(path: Path, header: List[str], rows: List[List]) -> None:
@@ -146,15 +168,7 @@ def save_strategy_nav(
     """전략 NAV를 strategy_nav.csv에 기록한다 (중복 날짜 스킵)."""
     _ensure_dir()
 
-    existing_dates: set = set()
-    if STRATEGY_NAV_CSV.exists() and STRATEGY_NAV_CSV.stat().st_size > 0:
-        with open(STRATEGY_NAV_CSV, "r", newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                if row.get("strategy") == strategy_name:
-                    existing_dates.add(row.get("date", ""))
-
-    if date in existing_dates:
+    if date in _existing_dates_in_csv(STRATEGY_NAV_CSV, "date", "strategy", strategy_name):
         return
 
     row = [date, strategy_name, f"{daily_return:.6f}", f"{nav:.6f}"]
@@ -207,7 +221,7 @@ def load_ohlc_prices(tickers: Optional[List[str]] = None) -> Dict[str, Dict[str,
 
 
 def save_ohlc_history(ticker: str, history_data: List[Dict]) -> None:
-    from app.data_utils import extract_date, extract_price
+    from app.data.data_utils import extract_date, extract_price
 
     new_rows = []
     for row in history_data:
@@ -242,13 +256,7 @@ def save_ohlc_history(ticker: str, history_data: List[Dict]) -> None:
 def save_portfolio_nav(date: str, nav: float, daily_return: float) -> None:
     """포트폴리오 NAV를 portfolio_nav.csv에 기록 (중복 날짜 스킵)."""
     _ensure_dir()
-    existing_dates: set = set()
-    if PORTFOLIO_NAV_CSV.exists() and PORTFOLIO_NAV_CSV.stat().st_size > 0:
-        with open(PORTFOLIO_NAV_CSV, "r", newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                existing_dates.add(row.get("date", ""))
-    if date in existing_dates:
+    if date in _existing_dates_in_csv(PORTFOLIO_NAV_CSV, "date"):
         return
     _append_rows(PORTFOLIO_NAV_CSV, PORTFOLIO_NAV_HEADER, [[date, f"{nav:.6f}", f"{daily_return:.6f}"]])
 

@@ -1,61 +1,14 @@
 {
-  "strategies": [
-    {
-      "name": "vaa"
-    },
-    {
-      "name": "daa"
-    },
-    {
-      "name": "paa"
-    },
-    {
-      "name": "baa_g12"
-    },
-    {
-      "name": "baa_g4"
-    },
-    {
-      "name": "gem"
-    },
-    {
-      "name": "haa"
-    },
-    {
-      "name": "permanent"
-    },
-    {
-      "name": "all_weather"
-    },
-    {
-      "name": "golden_butterfly"
-    },
-    {
-      "name": "gtaa"
-    },
-    {
-      "name": "ivy"
-    },
-    {
-      "name": "faa"
-    },
-    {
-      "name": "eaa"
-    },
-    {
-      "name": "laa"
-    }
-  ],
   "selection": {
     "criteria": "corr_constrained",
-    "top_n": 4,
-    "mdd_filter_threshold": -0.05,
+    "top_n": 2,
+    "mdd_filter_threshold": -0.07,
     "fallback_strategy": "permanent",
-    "portfolio_mdd_limit": -0.20
+    "portfolio_mdd_limit": -0.18
   },
   "strategy": {
-    "rebalance_threshold_pct": 0.05,
-    "cash_buffer_pct": 0.0,
-    "min_trade_value_usd": 5.0
+    "rebalance_threshold_pct": 0.07,
+    "cash_buffer_pct": 0.03,
+    "min_trade_value_usd": 20.0
   }
 }
