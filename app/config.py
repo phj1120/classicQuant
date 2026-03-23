@@ -82,7 +82,8 @@ def load_strategy_entries(raw: Dict) -> List[Dict]:
     """
     data = raw.get("strategies", [])
     if not data:
-        raise RuntimeError("config.json에 strategies 설정이 필요합니다.")
+        from app.strategies import _REGISTRY
+        data = [{"name": name} for name in _REGISTRY]
     has_weights = any("weight" in e for e in data)
     if has_weights:
         total = sum(e.get("weight", 1.0) for e in data)

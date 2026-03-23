@@ -1,4 +1,21 @@
 {
+  "strategies": [
+    { "name": "daa" },
+    { "name": "vaa" },
+    { "name": "paa" },
+    { "name": "baa_g12" },
+    { "name": "baa_g4" },
+    { "name": "gem" },
+    { "name": "haa" },
+    { "name": "permanent" },
+    { "name": "all_weather" },
+    { "name": "golden_butterfly" },
+    { "name": "gtaa" },
+    { "name": "ivy" },
+    { "name": "faa" },
+    { "name": "eaa" },
+    { "name": "laa" }
+  ],
   "selection": {
     "criteria": "corr_constrained",
     "top_n": 2,
