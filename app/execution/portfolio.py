@@ -78,7 +78,8 @@ def get_prices(api: KoreaInvestmentAPI, tickers: List[str]) -> Dict[str, float]:
         set_exchange_for_ticker(api, ticker)
         price = api.get_current_price(ticker)
         if price is None:
-            raise RuntimeError(f"현재가 조회 실패: {ticker}")
+            print(f"⚠️  현재가 없음, 스킵: {ticker}")
+            continue
         prices[ticker] = price
     return prices
 

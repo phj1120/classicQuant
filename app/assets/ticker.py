@@ -28,8 +28,9 @@ class Ticker(str, Enum):
         return Ticker(self._alt) if self._alt else None
 
     # ── 미국 주식 ──────────────────────────────────────────────────────────────
-    SPY  = ("SPY",  "AMEX", "S&P 500 ETF (SPDR)",               "SPLG")
-    SPLG = ("SPLG", "AMEX", "S&P 500 ETF (SPDR Portfolio)",      None)
+    SPY  = ("SPY",  "AMEX", "S&P 500 ETF (SPDR)",               "VOO")
+    VOO  = ("VOO",  "AMEX", "S&P 500 ETF (Vanguard)",           None)
+    SPLG = ("SPLG", "AMEX", "S&P 500 ETF (SPDR Portfolio)",      None)  # KIS 미지원
     IWM  = ("IWM",  "AMEX", "Russell 2000 소형주 ETF (iShares)", "IJR")
     IJR  = ("IJR",  "AMEX", "S&P 600 소형주 ETF (iShares)",      "SPSM")
     SPSM = ("SPSM", "AMEX", "S&P 600 소형주 ETF (SPDR Portfolio)", None)
@@ -79,8 +80,9 @@ class Ticker(str, Enum):
     SCHR = ("SCHR", "AMEX", "미국 중기채 ETF (Schwab)",          None)
 
     # ── 미국 단기채 ────────────────────────────────────────────────────────────
-    SHY  = ("SHY",  "NASD", "미국 단기채 ETF (iShares 1-3년)",   "CLTL")
-    CLTL = ("CLTL", "AMEX", "미국 단기채 ETF (Invesco)",         None)
+    SHY  = ("SHY",  "NASD", "미국 단기채 ETF (iShares 1-3년)",   "VGSH")
+    VGSH = ("VGSH", "NASD", "미국 단기채 ETF (Vanguard)",        None)
+    CLTL = ("CLTL", "AMEX", "미국 단기채 ETF (Invesco)",         None)  # KIS 미지원
 
     # ── 미국 초단기 국채 ───────────────────────────────────────────────────────
     BIL  = ("BIL",  "AMEX", "미국 초단기 국채 ETF (SPDR 1-3개월)", "SHV")

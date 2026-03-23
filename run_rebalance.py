@@ -217,7 +217,9 @@ def main() -> None:
         status = "⛔ 서킷 브레이커 발동" if circuit_triggered else "✅ 정상"
         print(f"📉 포트폴리오 낙폭: {portfolio_dd:.1%} (한도: {mdd_limit:.1%}) {status}")
 
-    # CSV 로깅: 보유 현황
+    # CSV 로깅: 보유 현황 (assets 캐시 초기화 후 호출)
+    all_strategy_assets = [get_strategy(e["name"]).assets for e in strategy_entries]
+    merge_assets(all_strategy_assets)
     from app.assets.assets import group_for_ticker
     save_holdings(today, holdings_detail, prices, group_for_ticker)
 
