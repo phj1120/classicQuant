@@ -93,11 +93,18 @@ def select_active_strategies(
         "return_6m", "return_12m", "sharpe_12m", "calmar_12m",
         "corr_constrained",
     }
+    rolling_peak_window = selection_cfg.get("rolling_peak_window", 252)
+    mdd_threshold_ratio = selection_cfg.get("mdd_threshold_ratio")
+
     if criteria in _NAV_CRITERIA:
-        candidates = _select_by_nav_score(strategy_entries, criteria, top_n, mdd_threshold)
+        candidates = _select_by_nav_score(
+            strategy_entries, criteria, top_n, mdd_threshold,
+            rolling_peak_window, mdd_threshold_ratio,
+        )
     elif criteria == "offensive_mode":
         candidates = _select_by_offensive_mode(
-            strategy_entries, strategies, scores_by_strategy, mdd_threshold
+            strategy_entries, strategies, scores_by_strategy,
+            mdd_threshold, mdd_threshold_ratio,
         )
     else:
         raise ValueError(f"알 수 없는 선택 기준: '{criteria}'")
@@ -122,11 +129,56 @@ def select_active_strategies(
     ]
 
 
+def _rolling_drawdown(prices: List[float], window: int = 252) -> float:
+    """롤링 윈도우 피크 대비 현재 낙폭을 반환한다.
+
+    window일 내 최고가 기준으로 현재 NAV의 낙폭을 계산한다.
+    전체 기간 ATH 대신 최근 추세 이탈 여부를 측정하기 위해 사용한다.
+    """
+    if not prices:
+        return 0.0
+    recent = prices[-window:] if len(prices) > window else prices
+    peak = max(recent)
+    return (prices[-1] / peak - 1.0) if peak > 0 else 0.0
+
+
+def _historical_mdd(prices: List[float]) -> float:
+    """전체 NAV 히스토리에서 최대 낙폭(MDD)을 계산한다."""
+    if len(prices) < 2:
+        return 0.0
+    peak = prices[0]
+    mdd = 0.0
+    for p in prices:
+        peak = max(peak, p)
+        mdd = min(mdd, (p - peak) / peak)
+    return mdd
+
+
+def _effective_mdd_threshold(
+    prices: List[float],
+    mdd_threshold: Optional[float],
+    mdd_threshold_ratio: Optional[float],
+) -> Optional[float]:
+    """전략별 유효 MDD 임계값 반환.
+
+    mdd_threshold_ratio가 있으면 역대 MDD × ratio를 사용한다.
+    ratio를 쓰면 전략마다 다른 변동성을 자동으로 반영하므로 하드코딩 불필요.
+    fallback: mdd_threshold (전역 고정값).
+    """
+    if mdd_threshold_ratio is not None:
+        hist_mdd = _historical_mdd(prices)
+        if hist_mdd < 0:
+            return hist_mdd * mdd_threshold_ratio
+    return mdd_threshold
+
+
 def _select_by_nav_score(
     strategy_entries: List[Dict],
     criteria: str,
     top_n: Optional[int],
     mdd_threshold: Optional[float],
+    rolling_peak_window: int = 252,
+    mdd_threshold_ratio: Optional[float] = None,
 ) -> List[Tuple[str, float]]:
     """strategy_nav.csv NAV 데이터 기반 다양한 기준으로 전략 선택."""
     from app.analytics.csv_logger import load_strategy_nav
@@ -145,22 +197,25 @@ def _select_by_nav_score(
         rets = [float(row["daily_return"]) for row in nav_series if row.get("daily_return")]
 
         if criteria == "strategy_momentum":
-            score, drawdown = _compute_nav_momentum(nav_series)
+            score, _ = _compute_nav_momentum(nav_series)  # score만 사용, drawdown은 롤링으로 재계산
         else:
             if criteria == "corr_constrained":
                 score = _compute_nav_score(prices, rets, "sharpe_12m")
             else:
                 score = _compute_nav_score(prices, rets, criteria)
-            peak = max(prices) if prices else 1.0
-            drawdown = (prices[-1] / peak - 1.0) if prices and peak > 0 else 0.0
+
+        # 롤링 피크 기반 현재 낙폭
+        drawdown = _rolling_drawdown(prices, rolling_peak_window)
+        effective_threshold = _effective_mdd_threshold(prices, mdd_threshold, mdd_threshold_ratio)
 
         if score is None:
             print(f"  ⚠️  {name}: NAV 데이터 부족 (워밍업 필요)")
             continue
 
         # MDD 필터
-        if mdd_threshold is not None and drawdown < mdd_threshold:
-            print(f"  ❌ {name}: 낙폭 {drawdown:.1%} < 임계값 {mdd_threshold:.1%} → 제외")
+        if effective_threshold is not None and drawdown < effective_threshold:
+            label = f"역대MDD×{mdd_threshold_ratio}" if mdd_threshold_ratio else "고정"
+            print(f"  ❌ {name}: 낙폭 {drawdown:.1%} < 임계값 {effective_threshold:.1%} ({label}) → 제외")
             continue
 
         scored.append((name, score, drawdown))
@@ -279,6 +334,7 @@ def _select_by_offensive_mode(
     strategies: Dict[str, BaseStrategy],
     scores_by_strategy: Dict[str, Dict[str, Optional[float]]],
     mdd_threshold: Optional[float],
+    mdd_threshold_ratio: Optional[float] = None,
 ) -> List[Tuple[str, float]]:
     """현재 전략 신호(offensive/defensive)로 active 전략 선택."""
     from app.analytics.csv_logger import load_strategy_nav
@@ -306,9 +362,11 @@ def _select_by_offensive_mode(
         # MDD 필터 (데이터 있을 때만)
         if mdd_threshold is not None:
             nav_series = all_nav.get(name, [])
-            _, drawdown = _compute_nav_momentum(nav_series)
-            if drawdown < mdd_threshold:
-                print(f"  ❌ {name}: 낙폭 {drawdown:.1%} < 임계값 {mdd_threshold:.1%} → 제외")
+            prices_dd = [float(row["nav"]) for row in nav_series if row.get("nav")]
+            drawdown = _rolling_drawdown(prices_dd)
+            effective_threshold = _effective_mdd_threshold(prices_dd, mdd_threshold, mdd_threshold_ratio)
+            if drawdown < effective_threshold:
+                print(f"  ❌ {name}: 낙폭 {drawdown:.1%} < 임계값 {effective_threshold:.1%} → 제외")
                 continue
 
         result.append((name, 1.0))

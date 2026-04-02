@@ -109,7 +109,6 @@ def main() -> None:
     key_path = base_dir / "key.json"
 
     raw = load_config(config_path)
-    key = load_key(key_path if key_path.exists() else None)
     strategy_entries = load_strategy_entries(raw)
 
     print("=" * 60)
@@ -121,6 +120,7 @@ def main() -> None:
         if args.source == "yfinance":
             collect_price_history_yfinance(strategy_entries)
         else:
+            key = load_key(key_path if key_path.exists() else None)
             kis_config = build_kis_config(key)
             api = KoreaInvestmentAPI(kis_config, config_file=str(key_path) if key_path.exists() else None)
             collect_price_history_kis(api, strategy_entries)

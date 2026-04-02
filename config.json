@@ -19,7 +19,9 @@
   "selection": {
     "criteria": "corr_constrained",
     "top_n": 2,
-    "mdd_filter_threshold": -0.07,
+    "mdd_filter_threshold": -0.15,
+    "mdd_threshold_ratio": 0.8,
+    "rolling_peak_window": 252,
     "fallback_strategy": "permanent",
     "portfolio_mdd_limit": -0.18
   },

@@ -3,6 +3,19 @@ import os
 from pathlib import Path
 from typing import Dict, List, Optional
 
+
+def _normalize_date(date_str: str) -> str:
+    """날짜 문자열을 YYYY-MM-DD로 정규화한다.
+
+    KIS API는 YYYYMMDD, yfinance/collect은 YYYY-MM-DD를 반환하는데,
+    두 형식이 섞이면 중복 감지가 실패하고 sort 순서가 어긋난다.
+    모든 I/O 경계에서 이 함수로 통일한다.
+    """
+    s = str(date_str).strip().replace("-", "")
+    if len(s) == 8 and s.isdigit():
+        return f"{s[:4]}-{s[4:6]}-{s[6:]}"
+    return date_str
+
 DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 
 HOLDINGS_CSV = DATA_DIR / "holdings.csv"
@@ -42,7 +55,7 @@ def _existing_dates_in_csv(
     with open(path, "r", newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         return {
-            row.get(date_col, "")
+            _normalize_date(row.get(date_col, ""))
             for row in reader
             if filter_col is None or row.get(filter_col) == filter_val
         }
@@ -167,6 +180,7 @@ def save_strategy_nav(
 ) -> None:
     """전략 NAV를 strategy_nav.csv에 기록한다 (중복 날짜 스킵)."""
     _ensure_dir()
+    date = _normalize_date(date)
 
     if date in _existing_dates_in_csv(STRATEGY_NAV_CSV, "date", "strategy", strategy_name):
         return
@@ -179,20 +193,28 @@ def load_strategy_nav(strategy_name: Optional[str] = None) -> Dict[str, List[Dic
     """strategy_nav.csv를 로드한다.
 
     strategy_name 지정 시 해당 전략만 반환, None이면 전체 반환.
+    날짜를 YYYY-MM-DD로 정규화하고, (전략, 날짜) 중복은 파일 하단(최신 기록) 우선으로 제거한다.
     반환: {strategy_name: [{date, daily_return, nav}, ...]} (날짜 오름차순)
     """
     if not STRATEGY_NAV_CSV.exists():
         return {}
-    result: Dict[str, List[Dict]] = {}
+    raw: Dict[str, List[Dict]] = {}
     with open(STRATEGY_NAV_CSV, "r", newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             name = row.get("strategy", "")
             if strategy_name and name != strategy_name:
                 continue
-            result.setdefault(name, []).append(row)
-    for name in result:
-        result[name].sort(key=lambda r: r.get("date", ""))
+            row["date"] = _normalize_date(row.get("date", ""))
+            raw.setdefault(name, []).append(row)
+
+    result: Dict[str, List[Dict]] = {}
+    for name, rows in raw.items():
+        # 중복 날짜 제거: 파일 하단 기록 우선 (실제 매매 데이터 > 시뮬레이션 데이터)
+        deduped: Dict[str, Dict] = {}
+        for row in rows:
+            deduped[row["date"]] = row
+        result[name] = sorted(deduped.values(), key=lambda r: r["date"])
     return result
 
 
@@ -225,7 +247,7 @@ def save_ohlc_history(ticker: str, history_data: List[Dict]) -> None:
 
     new_rows = []
     for row in history_data:
-        date = extract_date(row)
+        date = _normalize_date(extract_date(row) or "")
         price = extract_price(row)
         if date and price is not None:
             new_rows.append((date, price))
@@ -256,6 +278,7 @@ def save_ohlc_history(ticker: str, history_data: List[Dict]) -> None:
 def save_portfolio_nav(date: str, nav: float, daily_return: float) -> None:
     """포트폴리오 NAV를 portfolio_nav.csv에 기록 (중복 날짜 스킵)."""
     _ensure_dir()
+    date = _normalize_date(date)
     if date in _existing_dates_in_csv(PORTFOLIO_NAV_CSV, "date"):
         return
     _append_rows(PORTFOLIO_NAV_CSV, PORTFOLIO_NAV_HEADER, [[date, f"{nav:.6f}", f"{daily_return:.6f}"]])
