@@ -1,19 +1,7 @@
-from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
-try:
-    from zoneinfo import ZoneInfo
-except ImportError:  # pragma: no cover
-    ZoneInfo = None
-
-from app.constants import US_MARKET_TZ
-
-
-def _today_label() -> str:
-    if ZoneInfo is None:
-        return datetime.now().strftime("%Y-%m-%d")
-    return datetime.now(ZoneInfo(US_MARKET_TZ)).strftime("%Y-%m-%d")
+from app.time_utils import trading_date_label
 
 
 def write_report(
@@ -25,7 +13,7 @@ def write_report(
     strategy_results: [{"name", "weight", "scores", "targets", "selected_tickers"}, ...]
     """
     out_dir.mkdir(parents=True, exist_ok=True)
-    date_str = _today_label()
+    date_str = trading_date_label()
     path = out_dir / f"{date_str}.md"
 
     names = " + ".join(

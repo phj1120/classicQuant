@@ -246,23 +246,53 @@ def build_group_orders(
     return orders, selected_tickers
 
 
-def execute_orders(api: KoreaInvestmentAPI, orders: List[Dict], holdings_detail: Dict[str, Dict]) -> None:
+def execute_orders(api: KoreaInvestmentAPI, orders: List[Dict], holdings_detail: Dict[str, Dict]) -> Dict[str, List[Dict]]:
     if not orders:
         print("✅ 리밸런싱 필요 없음")
-        return
+        return {"sells": [], "buys": [], "failed": [], "succeeded": []}
 
     sells = [o for o in orders if o["side"] == "sell"]
     buys = [o for o in orders if o["side"] == "buy"]
+    results: Dict[str, List[Dict]] = {"sells": [], "buys": [], "failed": [], "succeeded": []}
 
     print("\n📌 매도 주문")
     for order in sells:
         print(f"- {order['ticker']} {order['quantity']}주 (추정 ${order['est_value']:.2f})")
         info = holdings_detail.get(order["ticker"], {})
         set_exchange_for_order(api, order["ticker"], info.get("excg"))
-        api.sell_stock(order["ticker"], order["quantity"], price=order.get("price"))
+        success = api.sell_stock(order["ticker"], order["quantity"], price=order.get("price"))
+        result = {
+            "side": "sell",
+            "ticker": order["ticker"],
+            "quantity": order["quantity"],
+            "success": success,
+            "message": (api.last_order_result or {}).get("message", ""),
+        }
+        results["sells"].append(result)
+        (results["succeeded"] if success else results["failed"]).append(result)
 
     print("\n📌 매수 주문")
     for order in buys:
         print(f"- {order['ticker']} {order['quantity']}주 (추정 ${order['est_value']:.2f})")
         set_exchange_for_order(api, order["ticker"], order.get("exchange_code"))
-        api.buy_stock(order["ticker"], order["quantity"], price=order.get("price"))
+        success = api.buy_stock(order["ticker"], order["quantity"], price=order.get("price"))
+        result = {
+            "side": "buy",
+            "ticker": order["ticker"],
+            "quantity": order["quantity"],
+            "success": success,
+            "message": (api.last_order_result or {}).get("message", ""),
+        }
+        results["buys"].append(result)
+        (results["succeeded"] if success else results["failed"]).append(result)
+
+    print(
+        f"\n✅ 주문 요약: 성공 {len(results['succeeded'])}건 / 실패 {len(results['failed'])}건"
+    )
+    if results["failed"]:
+        for result in results["failed"]:
+            print(
+                f"  ❌ {result['side']} {result['ticker']} {result['quantity']}주: {result['message']}"
+            )
+
+    return results

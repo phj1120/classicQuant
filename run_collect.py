@@ -15,8 +15,6 @@ GitHub Actions / cron으로 매일 실행.
 
 import sys
 from pathlib import Path
-from datetime import datetime
-
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from app.assets.assets import reload_assets
@@ -30,22 +28,12 @@ from app.analytics.csv_logger import (
     save_strategy_nav,
     save_strategy_signal,
 )
-from app.execution.exchange import set_exchange_for_ticker
-from app.assets.assets import group_tickers
 from app.data.kis_api import KoreaInvestmentAPI
 from app.data.data_utils import parse_history
+from app.analytics.returns import compute_weighted_return
 from app.indicators.momentum import get_momentum_scores
 from app.strategies import get_strategy
-
-
-def _get_latest_price_for_ticker(ticker: str, price_dict: dict) -> float | None:
-    """ohlc_history.csv에서 특정 티커의 가장 최근 가격을 반환한다."""
-    dates = price_dict.get(ticker, {})
-    if not dates:
-        return None
-    latest_date = max(dates.keys())
-    return dates[latest_date]
-
+from app.time_utils import trading_date_label
 
 def _calc_strategy_daily_return(
     strategy_name: str,
@@ -82,17 +70,7 @@ def _calc_strategy_daily_return(
     if not targets:
         return 0.0
 
-    total_return = 0.0
-    for group, weight in targets.items():
-        for ticker in group_tickers(group):
-            prev_price = price_dict.get(ticker, {}).get(prev_date)
-            curr_price = price_dict.get(ticker, {}).get(today)
-            if prev_price and curr_price and prev_price > 0:
-                ret = (curr_price / prev_price) - 1.0
-                total_return += weight * ret
-                break
-
-    return total_return
+    return compute_weighted_return(targets, price_dict, prev_date, today)
 
 
 def _get_prev_nav(strategy_name: str) -> float:
@@ -119,7 +97,7 @@ def main() -> None:
 
     api = KoreaInvestmentAPI(kis_config, config_file=str(key_path) if key_path.exists() else None)
 
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = trading_date_label()
 
     print("=" * 60)
     print(f"📊 classicQuant 일별 수집 | {today}")

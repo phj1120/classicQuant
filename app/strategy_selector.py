@@ -113,10 +113,10 @@ def select_active_strategies(
     if not candidates:
         print(f"⚠️  유효 전략 없음, fallback 사용: {fallback_name}")
         candidates = [(fallback_name, 0.0)]
-        slot_weight = 1.0
-    else:
-        # 슬롯당 비중: top_n 기준 고정 (top_n 없으면 균등)
-        slot_weight = 1.0 / top_n if top_n is not None else 1.0 / len(candidates)
+    # 실제 선택된 전략 수 기준으로 재정규화한다.
+    # corr_constrained 등으로 후보 수가 top_n보다 적어질 수 있으므로,
+    # 고정 슬롯 비중을 유지하면 의도치 않은 현금 비중이 생긴다.
+    slot_weight = 1.0 / len(candidates)
 
     print("\n📊 선택된 active 전략:")
     for name, score in candidates:

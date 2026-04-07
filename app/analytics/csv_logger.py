@@ -21,6 +21,7 @@ DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 HOLDINGS_CSV = DATA_DIR / "holdings.csv"
 MOMENTUM_CSV = DATA_DIR / "momentum.csv"
 PORTFOLIO_CSV = DATA_DIR / "portfolio.csv"
+PORTFOLIO_STATE_CSV = DATA_DIR / "portfolio_state.csv"
 OHLC_CSV = DATA_DIR / "ohlc_history.csv"
 STRATEGY_SIGNALS_CSV = DATA_DIR / "strategy_signals.csv"
 STRATEGY_NAV_CSV = DATA_DIR / "strategy_nav.csv"
@@ -29,10 +30,11 @@ PORTFOLIO_NAV_CSV = DATA_DIR / "portfolio_nav.csv"
 HOLDINGS_HEADER = ["date", "ticker", "group", "qty", "price", "value", "exchange"]
 MOMENTUM_HEADER = ["date", "strategy", "group", "score", "r1m", "r3m", "r6m", "r12m"]
 PORTFOLIO_HEADER = ["date", "total_equity", "cash", "strategy", "group", "target_weight", "selected_ticker"]
+PORTFOLIO_STATE_HEADER = ["date", "total_equity", "cash"]
 OHLC_HEADER = ["ticker", "date", "close"]
 STRATEGY_SIGNALS_HEADER = ["date", "strategy", "mode", "selected_assets", "top_score"]
 STRATEGY_NAV_HEADER = ["date", "strategy", "daily_return", "nav"]
-PORTFOLIO_NAV_HEADER = ["date", "nav", "daily_return"]
+PORTFOLIO_NAV_HEADER = ["date", "nav", "daily_return", "total_equity"]
 
 
 def _ensure_dir() -> None:
@@ -71,6 +73,69 @@ def _append_rows(path: Path, header: List[str], rows: List[List]) -> None:
         writer.writerows(rows)
 
 
+def _migrate_portfolio_nav_csv_if_needed() -> None:
+    """구형 portfolio_nav.csv(3컬럼)를 4컬럼 형식으로 승격한다."""
+    if not PORTFOLIO_NAV_CSV.exists() or PORTFOLIO_NAV_CSV.stat().st_size == 0:
+        return
+
+    with open(PORTFOLIO_NAV_CSV, "r", newline="", encoding="utf-8") as f:
+        reader = csv.reader(f)
+        rows = list(reader)
+
+    if not rows:
+        return
+
+    header = rows[0]
+    if header == PORTFOLIO_NAV_HEADER:
+        return
+
+    if header == ["date", "nav", "daily_return"]:
+        migrated_rows = [PORTFOLIO_NAV_HEADER]
+        for row in rows[1:]:
+            if len(row) >= 3:
+                migrated_rows.append([row[0], row[1], row[2], ""])
+        with open(PORTFOLIO_NAV_CSV, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerows(migrated_rows)
+        return
+
+    raise RuntimeError(
+        f"알 수 없는 portfolio_nav.csv 헤더 형식: {header}"
+    )
+
+
+def _append_unique_rows(
+    path: Path,
+    header: List[str],
+    rows: List[List],
+    existing_key_fn,
+    row_key_fn,
+) -> None:
+    """기존 키와 중복되지 않는 행만 append 한다.
+
+    기존 파일의 마지막 기록을 유지한 채, 같은 키의 중복 재실행만 방지한다.
+    """
+    _ensure_dir()
+
+    existing_keys = set()
+    if path.exists() and path.stat().st_size > 0:
+        with open(path, "r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                existing_keys.add(existing_key_fn(row))
+
+    unique_rows: List[List] = []
+    for row in rows:
+        key = row_key_fn(row)
+        if key in existing_keys:
+            continue
+        existing_keys.add(key)
+        unique_rows.append(row)
+
+    if unique_rows:
+        _append_rows(path, header, unique_rows)
+
+
 def save_holdings(
     date: str,
     holdings_detail: Dict[str, Dict],
@@ -86,7 +151,19 @@ def save_holdings(
         exchange = info.get("excg", "")
         rows.append([date, ticker, group, qty, f"{price:.2f}", f"{value:.2f}", exchange])
     if rows:
-        _append_rows(HOLDINGS_CSV, HOLDINGS_HEADER, rows)
+        _append_unique_rows(
+            HOLDINGS_CSV,
+            HOLDINGS_HEADER,
+            rows,
+            existing_key_fn=lambda row: (
+                _normalize_date(row.get("date", "")),
+                row.get("ticker", ""),
+            ),
+            row_key_fn=lambda row: (
+                _normalize_date(row[0]),
+                row[1],
+            ),
+        )
 
 
 def save_momentum(
@@ -110,7 +187,21 @@ def save_momentum(
             f"{ret.get('r12m', 0.0):.4f}" if ret.get("r12m") is not None else "",
         ])
     if rows:
-        _append_rows(MOMENTUM_CSV, MOMENTUM_HEADER, rows)
+        _append_unique_rows(
+            MOMENTUM_CSV,
+            MOMENTUM_HEADER,
+            rows,
+            existing_key_fn=lambda row: (
+                _normalize_date(row.get("date", "")),
+                row.get("strategy", ""),
+                row.get("group", ""),
+            ),
+            row_key_fn=lambda row: (
+                _normalize_date(row[0]),
+                row[1],
+                row[2],
+            ),
+        )
 
 
 def save_portfolio(
@@ -137,7 +228,47 @@ def save_portfolio(
                 sel_ticker,
             ])
     if rows:
-        _append_rows(PORTFOLIO_CSV, PORTFOLIO_HEADER, rows)
+        _append_unique_rows(
+            PORTFOLIO_CSV,
+            PORTFOLIO_HEADER,
+            rows,
+            existing_key_fn=lambda row: (
+                _normalize_date(row.get("date", "")),
+                row.get("strategy", ""),
+                row.get("group", ""),
+            ),
+            row_key_fn=lambda row: (
+                _normalize_date(row[0]),
+                row[3],
+                row[4],
+            ),
+        )
+
+
+def save_portfolio_state(date: str, total_equity: float, cash: float) -> None:
+    _append_unique_rows(
+        PORTFOLIO_STATE_CSV,
+        PORTFOLIO_STATE_HEADER,
+        [[date, f"{total_equity:.2f}", f"{cash:.2f}"]],
+        existing_key_fn=lambda row: _normalize_date(row.get("date", "")),
+        row_key_fn=lambda row: _normalize_date(row[0]),
+    )
+
+
+def load_portfolio_state() -> List[Dict]:
+    if not PORTFOLIO_STATE_CSV.exists():
+        return []
+    rows = []
+    with open(PORTFOLIO_STATE_CSV, "r", newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            row["date"] = _normalize_date(row.get("date", ""))
+            rows.append(row)
+
+    deduped: Dict[str, Dict] = {}
+    for row in rows:
+        deduped[row["date"]] = row
+    return sorted(deduped.values(), key=lambda r: r.get("date", ""))
 
 
 def save_strategy_signal(
@@ -156,7 +287,19 @@ def save_strategy_signal(
         assets_str,
         f"{top_score:.4f}" if top_score is not None else "",
     ]
-    _append_rows(STRATEGY_SIGNALS_CSV, STRATEGY_SIGNALS_HEADER, [row])
+    _append_unique_rows(
+        STRATEGY_SIGNALS_CSV,
+        STRATEGY_SIGNALS_HEADER,
+        [row],
+        existing_key_fn=lambda existing_row: (
+            _normalize_date(existing_row.get("date", "")),
+            existing_row.get("strategy", ""),
+        ),
+        row_key_fn=lambda new_row: (
+            _normalize_date(new_row[0]),
+            new_row[1],
+        ),
+    )
 
 
 def load_strategy_signals(strategy_name: str) -> List[Dict]:
@@ -168,8 +311,13 @@ def load_strategy_signals(strategy_name: str) -> List[Dict]:
         reader = csv.DictReader(f)
         for row in reader:
             if row.get("strategy") == strategy_name:
+                row["date"] = _normalize_date(row.get("date", ""))
                 rows.append(row)
-    return sorted(rows, key=lambda r: r.get("date", ""))
+
+    deduped: Dict[str, Dict] = {}
+    for row in rows:
+        deduped[row["date"]] = row
+    return sorted(deduped.values(), key=lambda r: r.get("date", ""))
 
 
 def save_strategy_nav(
@@ -216,6 +364,24 @@ def load_strategy_nav(strategy_name: Optional[str] = None) -> Dict[str, List[Dic
             deduped[row["date"]] = row
         result[name] = sorted(deduped.values(), key=lambda r: r["date"])
     return result
+
+
+def load_portfolio_snapshots() -> List[Dict]:
+    """portfolio.csv에서 날짜별 포트폴리오 스냅샷을 로드한다."""
+    if not PORTFOLIO_CSV.exists():
+        return []
+
+    raw: Dict[str, Dict] = {}
+    with open(PORTFOLIO_CSV, "r", newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            date = _normalize_date(row.get("date", ""))
+            if not date:
+                continue
+            row["date"] = date
+            raw[date] = row
+
+    return sorted(raw.values(), key=lambda r: r.get("date", ""))
 
 
 def load_ohlc_prices(tickers: Optional[List[str]] = None) -> Dict[str, Dict[str, float]]:
@@ -275,13 +441,24 @@ def save_ohlc_history(ticker: str, history_data: List[Dict]) -> None:
         _append_rows(OHLC_CSV, OHLC_HEADER, rows_to_add)
 
 
-def save_portfolio_nav(date: str, nav: float, daily_return: float) -> None:
+def save_portfolio_nav(
+    date: str,
+    nav: float,
+    daily_return: float,
+    total_equity: Optional[float] = None,
+) -> None:
     """포트폴리오 NAV를 portfolio_nav.csv에 기록 (중복 날짜 스킵)."""
     _ensure_dir()
+    _migrate_portfolio_nav_csv_if_needed()
     date = _normalize_date(date)
     if date in _existing_dates_in_csv(PORTFOLIO_NAV_CSV, "date"):
         return
-    _append_rows(PORTFOLIO_NAV_CSV, PORTFOLIO_NAV_HEADER, [[date, f"{nav:.6f}", f"{daily_return:.6f}"]])
+    equity_str = f"{total_equity:.2f}" if total_equity is not None else ""
+    _append_rows(
+        PORTFOLIO_NAV_CSV,
+        PORTFOLIO_NAV_HEADER,
+        [[date, f"{nav:.6f}", f"{daily_return:.6f}", equity_str]],
+    )
 
 
 def load_portfolio_nav() -> List[Dict]:

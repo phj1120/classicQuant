@@ -2,13 +2,15 @@ import json
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import requests
 
 
 class KoreaInvestmentAPI:
     """Minimal KIS API client for DAA."""
+
+    DEFAULT_TIMEOUT_SECONDS = 20
 
     def __init__(self, config: Dict, config_file: Optional[str] = None):
         self.app_key = config["app_key"]
@@ -17,12 +19,14 @@ class KoreaInvestmentAPI:
         self.account_code = config["account_code"]
         self.base_url = config["base_url"]
         self.exchange_code = config["exchange_code"]
+        self.timeout_seconds = int(config.get("request_timeout_seconds", self.DEFAULT_TIMEOUT_SECONDS))
 
         self.config_file = Path(config_file) if config_file else None
         self.config = config
 
         self.access_token = None
         self.token_expires_at = 0
+        self.last_order_result: Optional[Dict[str, Any]] = None
         self._load_token_from_config()
 
     @staticmethod
@@ -89,14 +93,54 @@ class KoreaInvestmentAPI:
             "appsecret": self.app_secret,
         }
 
-        response = requests.post(url, headers=headers, data=json.dumps(body))
-        response.raise_for_status()
-        data = response.json()
+        data = self._request_json(
+            "POST",
+            url,
+            headers=headers,
+            data=body,
+            error_label="토큰 발급",
+        )
+        if not data:
+            raise RuntimeError("토큰 발급 실패")
         self.access_token = data["access_token"]
         self.token_expires_at = time.time() + int(data["expires_in"]) - 300
         print(f"✅ 새 토큰 발급 완료 (유효 기간: {int(data['expires_in'])/3600:.1f}시간)")
         self._save_token_to_config()
         return self.access_token
+
+    def _request_json(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: Optional[Dict[str, str]] = None,
+        params: Optional[Dict[str, str]] = None,
+        data: Optional[Dict[str, Any]] = None,
+        error_label: str = "",
+        timeout: Optional[int] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """JSON 응답을 반환하는 공통 요청 래퍼."""
+        try:
+            response = requests.request(
+                method,
+                url,
+                headers=headers,
+                params=params,
+                data=json.dumps(data) if data is not None else None,
+                timeout=timeout or self.timeout_seconds,
+            )
+            response.raise_for_status()
+            try:
+                return response.json()
+            except ValueError as exc:
+                print(f"❌ {error_label or method} 응답 JSON 파싱 실패: {exc}")
+                return None
+        except requests.Timeout as exc:
+            print(f"❌ {error_label or method} 요청 시간 초과 ({self.timeout_seconds}s): {exc}")
+            return None
+        except requests.RequestException as exc:
+            print(f"❌ {error_label or method} 요청 오류: {exc}")
+            return None
 
     def _get_headers(self, tr_id: str, custtype: str = "P") -> Dict:
         return {
@@ -139,103 +183,103 @@ class KoreaInvestmentAPI:
         headers = self._get_headers("HHDFS00000300")
         params = {"AUTH": "", "EXCD": excd, "SYMB": ticker}
 
-        try:
-            response = requests.get(url, headers=headers, params=params)
-            response.raise_for_status()
-            data = response.json()
-            if data["rt_cd"] == "0":
-                last_price = data["output"].get("last", "")
-                if last_price:
-                    return float(last_price)
-                print("❌ 현재가 조회 실패: 'last' 필드가 비어있음")
-                return None
-            print(f"❌ 현재가 조회 실패: {data.get('msg1', 'Unknown error')}")
+        data = self._request_json(
+            "GET",
+            url,
+            headers=headers,
+            params=params,
+            error_label=f"현재가 조회({ticker})",
+        )
+        if not data:
             return None
-        except Exception as e:
-            print(f"❌ 현재가 조회 오류: {e}")
+        if data.get("rt_cd") == "0":
+            last_price = data.get("output", {}).get("last", "")
+            if last_price:
+                return float(last_price)
+            print("❌ 현재가 조회 실패: 'last' 필드가 비어있음")
             return None
+        print(f"❌ 현재가 조회 실패: {data.get('msg1', 'Unknown error')}")
+        return None
+
+    def _submit_order(
+        self,
+        tr_id: str,
+        ticker: str,
+        quantity: int,
+        price: Optional[float],
+        side: str,
+    ) -> bool:
+        url = f"{self.base_url}/uapi/overseas-stock/v1/trading/order"
+        headers = self._get_headers(tr_id)
+
+        if price is None:
+            current_price = self.get_current_price(ticker)
+            if not current_price:
+                print("❌ 현재가 조회 실패")
+                self.last_order_result = {
+                    "side": side,
+                    "ticker": ticker,
+                    "quantity": quantity,
+                    "success": False,
+                    "message": "현재가 조회 실패",
+                }
+                return False
+            ord_unpr = f"{current_price:.2f}"
+        else:
+            ord_unpr = f"{price:.2f}"
+
+        order_exchange_code = self._map_order_exchange(self.exchange_code)
+        body = {
+            "CANO": self.account_number,
+            "ACNT_PRDT_CD": self.account_code,
+            "OVRS_EXCG_CD": order_exchange_code,
+            "PDNO": ticker,
+            "ORD_QTY": str(quantity),
+            "OVRS_ORD_UNPR": ord_unpr,
+            "CTAC_TLNO": "",
+            "MGCO_APTM_ODNO": "",
+            "SLL_TYPE": "00" if side == "sell" else "",
+            "ORD_SVR_DVSN_CD": "0",
+            "ORD_DVSN": "00",
+        }
+
+        data = self._request_json(
+            "POST",
+            url,
+            headers=headers,
+            data=body,
+            error_label=f"{side} 주문({ticker})",
+        )
+        if not data:
+            self.last_order_result = {
+                "side": side,
+                "ticker": ticker,
+                "quantity": quantity,
+                "success": False,
+                "message": "요청 실패",
+            }
+            return False
+        success = data.get("rt_cd") == "0"
+        message = data.get("msg1", "Unknown error")
+        self.last_order_result = {
+            "side": side,
+            "ticker": ticker,
+            "quantity": quantity,
+            "success": success,
+            "message": message,
+            "response": data,
+        }
+        if success:
+            print(f"✅ {side} 주문 성공: {ticker} {quantity}주")
+            return True
+        print(f"❌ {side} 주문 실패: {message}")
+        return False
 
     def buy_stock(self, ticker: str, quantity: int, price: Optional[float] = None) -> bool:
-        url = f"{self.base_url}/uapi/overseas-stock/v1/trading/order"
-        headers = self._get_headers("TTTT1002U")
-
-        if price is None:
-            current_price = self.get_current_price(ticker)
-            if not current_price:
-                print("❌ 현재가 조회 실패")
-                return False
-            ord_unpr = f"{current_price:.2f}"
-        else:
-            ord_unpr = f"{price:.2f}"
-
-        order_exchange_code = self._map_order_exchange(self.exchange_code)
-        body = {
-            "CANO": self.account_number,
-            "ACNT_PRDT_CD": self.account_code,
-            "OVRS_EXCG_CD": order_exchange_code,
-            "PDNO": ticker,
-            "ORD_QTY": str(quantity),
-            "OVRS_ORD_UNPR": ord_unpr,
-            "CTAC_TLNO": "",
-            "MGCO_APTM_ODNO": "",
-            "SLL_TYPE": "",
-            "ORD_SVR_DVSN_CD": "0",
-            "ORD_DVSN": "00",
-        }
-
-        try:
-            response = requests.post(url, headers=headers, data=json.dumps(body))
-            response.raise_for_status()
-            data = response.json()
-            if data.get("rt_cd") == "0":
-                print(f"✅ 매수 주문 성공: {ticker} {quantity}주")
-                return True
-            print(f"❌ 매수 주문 실패: {data.get('msg1', 'Unknown error')}")
-            return False
-        except Exception as e:
-            print(f"❌ 매수 주문 오류: {e}")
-            return False
+        return self._submit_order("TTTT1002U", ticker, quantity, price, "buy")
 
     def sell_stock(self, ticker: str, quantity: int, price: Optional[float] = None) -> bool:
-        url = f"{self.base_url}/uapi/overseas-stock/v1/trading/order"
-        headers = self._get_headers("TTTT1006U")
-
-        if price is None:
-            current_price = self.get_current_price(ticker)
-            if not current_price:
-                print("❌ 현재가 조회 실패")
-                return False
-            ord_unpr = f"{current_price:.2f}"
-        else:
-            ord_unpr = f"{price:.2f}"
-
-        order_exchange_code = self._map_order_exchange(self.exchange_code)
-        body = {
-            "CANO": self.account_number,
-            "ACNT_PRDT_CD": self.account_code,
-            "OVRS_EXCG_CD": order_exchange_code,
-            "PDNO": ticker,
-            "ORD_QTY": str(quantity),
-            "OVRS_ORD_UNPR": ord_unpr,
-            "CTAC_TLNO": "",
-            "MGCO_APTM_ODNO": "",
-            "SLL_TYPE": "00",
-            "ORD_SVR_DVSN_CD": "0",
-            "ORD_DVSN": "00",
-        }
-
-        try:
-            response = requests.post(url, headers=headers, data=json.dumps(body))
-            response.raise_for_status()
-            data = response.json()
-            if data.get("rt_cd") == "0":
-                print(f"✅ 매도 주문 성공: {ticker} {quantity}주")
-                return True
-            print(f"❌ 매도 주문 실패: {data.get('msg1', 'Unknown error')}")
-            return False
-        except Exception as e:
-            print(f"❌ 매도 주문 오류: {e}")
-            return False
+        return self._submit_order("TTTT1006U", ticker, quantity, price, "sell")
 
     def get_balance(self) -> Optional[Dict]:
         url = f"{self.base_url}/uapi/overseas-stock/v1/trading/inquire-balance"
@@ -249,20 +293,22 @@ class KoreaInvestmentAPI:
             "CTX_AREA_NK200": "",
         }
 
-        try:
-            response = requests.get(url, headers=headers, params=params)
-            response.raise_for_status()
-            data = response.json()
-            if data["rt_cd"] == "0":
-                stocks = data.get("output1", [])
-                if not stocks:
-                    print(f"⚠️  잔고 없음 (exchg {self.exchange_code})")
-                return {"stocks": stocks, "total": data.get("output2", {})}
-            print(f"❌ 잔고 조회 실패: {data.get('msg1', 'Unknown error')}")
+        data = self._request_json(
+            "GET",
+            url,
+            headers=headers,
+            params=params,
+            error_label=f"잔고 조회({self.exchange_code})",
+        )
+        if not data:
             return None
-        except Exception as e:
-            print(f"❌ 잔고 조회 오류: {e}")
-            return None
+        if data["rt_cd"] == "0":
+            stocks = data.get("output1", [])
+            if not stocks:
+                print(f"⚠️  잔고 없음 (exchg {self.exchange_code})")
+            return {"stocks": stocks, "total": data.get("output2", {})}
+        print(f"❌ 잔고 조회 실패: {data.get('msg1', 'Unknown error')}")
+        return None
 
     def get_account_cash(self) -> Optional[float]:
         url = f"{self.base_url}/uapi/overseas-stock/v1/trading/inquire-psamount"
@@ -275,18 +321,20 @@ class KoreaInvestmentAPI:
             "ITEM_CD": "AAPL",
         }
 
-        try:
-            response = requests.get(url, headers=headers, params=params)
-            response.raise_for_status()
-            data = response.json()
-            if data["rt_cd"] == "0":
-                output = data.get("output", {})
-                return float(output.get("ovrs_ord_psbl_amt", "0"))
-            print(f"❌ 예수금 조회 실패: {data.get('msg1', 'Unknown error')}")
+        data = self._request_json(
+            "GET",
+            url,
+            headers=headers,
+            params=params,
+            error_label="예수금 조회",
+        )
+        if not data:
             return None
-        except Exception as e:
-            print(f"❌ 예수금 조회 오류: {e}")
-            return None
+        if data["rt_cd"] == "0":
+            output = data.get("output", {})
+            return float(output.get("ovrs_ord_psbl_amt", "0"))
+        print(f"❌ 예수금 조회 실패: {data.get('msg1', 'Unknown error')}")
+        return None
 
     def get_historical_data(
         self,
@@ -312,9 +360,15 @@ class KoreaInvestmentAPI:
                     "BYMD": bymd,
                     "MODP": "1",
                 }
-                response = requests.get(url, headers=headers, params=params)
-                response.raise_for_status()
-                data = response.json()
+                data = self._request_json(
+                    "GET",
+                    url,
+                    headers=headers,
+                    params=params,
+                    error_label=f"과거 데이터 조회({ticker})",
+                )
+                if not data:
+                    return None
                 if data.get("rt_cd") != "0":
                     print(f"❌ 과거 데이터 조회 실패: {data.get('msg1', 'Unknown error')}")
                     return None
@@ -340,17 +394,19 @@ class KoreaInvestmentAPI:
         headers = self._get_headers("CTOS5011R")
         params = {"TRAD_DT": trad_dt, "CTX_AREA_NK": "", "CTX_AREA_FK": ""}
 
-        try:
-            response = requests.get(url, headers=headers, params=params)
-            response.raise_for_status()
-            data = response.json()
-            if data.get("rt_cd") == "0":
-                output = data.get("output", [])
-                if isinstance(output, list):
-                    return output
-                return [output]
-            print(f"❌ 해외결제일자조회 실패: {data.get('msg1', 'Unknown error')}")
+        data = self._request_json(
+            "GET",
+            url,
+            headers=headers,
+            params=params,
+            error_label="해외결제일자조회",
+        )
+        if not data:
             return None
-        except Exception as e:
-            print(f"❌ 해외결제일자조회 오류: {e}")
-            return None
+        if data.get("rt_cd") == "0":
+            output = data.get("output", [])
+            if isinstance(output, list):
+                return output
+            return [output]
+        print(f"❌ 해외결제일자조회 실패: {data.get('msg1', 'Unknown error')}")
+        return None

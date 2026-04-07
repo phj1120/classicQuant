@@ -7,6 +7,8 @@ data/strategy_nav.csv의 NAV 시계열을 이용해 선택 기준 × top_n × MD
     python run_selection_backtest.py                  # top_n=3, 기본 비교
     python run_selection_backtest.py --top-n 5        # top_n 지정
     python run_selection_backtest.py --sweep          # top_n 1~15 Sharpe 히트맵
+    python run_selection_backtest.py --walk-forward   # rolling out-of-sample 검증
+    python run_selection_backtest.py --duplication    # 전략 중복도 분석
     python run_selection_backtest.py --full           # 전체 조합 파레토 분석
 """
 
@@ -15,6 +17,7 @@ import csv
 import json
 import math
 import sys
+from itertools import combinations
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -192,6 +195,64 @@ def _compute_corr(ret_a: List[float], ret_b: List[float], window: int = 63) -> O
     return cov / (std_a * std_b)
 
 
+def _select_strategies_at_date(
+    nav_data: Dict[str, List[Tuple[str, float, float]]],
+    date: str,
+    criterion: str,
+    top_n: int,
+    mdd_threshold: Optional[float] = None,
+) -> List[str]:
+    """특정 날짜 기준으로 선택된 전략 목록을 반환한다."""
+    scores: Dict[str, float] = {}
+    for name, series in nav_data.items():
+        if mdd_threshold is not None:
+            dd = current_drawdown(series, date)
+            if dd < mdd_threshold:
+                continue
+        sc = get_score(series, date, criterion)
+        if sc is not None:
+            scores[name] = sc
+
+    if not scores:
+        return []
+
+    ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+
+    if criterion == "equal_weight":
+        return [n for n, _ in ranked]
+
+    if criterion == "nav_momentum":
+        selected = [n for n, sc in ranked if sc > 0][:top_n]
+        if not selected and ranked:
+            return [ranked[0][0]]
+        return selected
+
+    selected = [n for n, _ in ranked[:top_n]]
+
+    if criterion == "corr_constrained":
+        ret_map = {
+            name: [r for d, r, _ in nav_data[name] if d <= date]
+            for name in scores
+        }
+        selected = []
+        for name, _ in ranked:
+            if not selected:
+                selected.append(name)
+                continue
+            max_corr = max(
+                (_compute_corr(ret_map[name], ret_map[s]) or 0.0)
+                for s in selected
+            )
+            if max_corr < CORR_THRESHOLD:
+                selected.append(name)
+            if len(selected) >= top_n:
+                break
+        if not selected and ranked:
+            selected = [ranked[0][0]]
+
+    return selected
+
+
 # ── 시뮬레이션 ─────────────────────────────────────────────────────────────────
 
 def simulate(
@@ -200,6 +261,9 @@ def simulate(
     top_n: int,
     years: int,
     mdd_threshold: Optional[float] = None,
+    history_start_date: Optional[str] = None,
+    eval_start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
 ) -> Tuple[List[Tuple[str, float]], List[str], Dict[str, int]]:
     """선택 기준별 포트폴리오 시뮬레이션.
 
@@ -211,9 +275,20 @@ def simulate(
         return [], [], {}
 
     cutoff = all_dates[-1]
-    start_year = int(cutoff[:4]) - years
-    start = f"{start_year}{cutoff[4:]}"
-    dates = [d for d in all_dates if d >= start]
+    if end_date is None:
+        end_date = cutoff
+
+    if history_start_date is None:
+        start_year = int(end_date[:4]) - years
+        history_start_date = f"{start_year}{end_date[4:]}"
+
+    if eval_start_date is None:
+        eval_start_date = history_start_date
+
+    dates = [
+        d for d in all_dates
+        if history_start_date <= d <= end_date
+    ]
     if len(dates) < 60:
         return [], [], {}
 
@@ -228,61 +303,27 @@ def simulate(
     weights: Dict[str, float] = {}
     last_selection: List[str] = []
     selection_count: Dict[str, int] = defaultdict(int)
+    base_nav: Optional[float] = None
 
     for i, date in enumerate(dates):
         if i == 0:
-            results.append((date, portfolio_nav))
+            if date >= eval_start_date:
+                base_nav = portfolio_nav
+                results.append((date, 1.0))
             continue
 
         if date in month_ends_set:
-            scores: Dict[str, float] = {}
-            for name, series in nav_data.items():
-                # MDD 필터
-                if mdd_threshold is not None:
-                    dd = current_drawdown(series, date)
-                    if dd < mdd_threshold:
-                        continue
-                sc = get_score(series, date, criterion)
-                if sc is not None:
-                    scores[name] = sc
-
-            if scores:
-                ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-
-                if criterion == "equal_weight":
-                    selected = [n for n, _ in ranked]
-                elif criterion == "nav_momentum":
-                    selected = [n for n, sc in ranked if sc > 0][:top_n]
-                    if not selected and ranked:
-                        selected = [ranked[0][0]]
-                else:
-                    selected = [n for n, _ in ranked[:top_n]]
-
-                if criterion == "corr_constrained":
-                    # sharpe_12m 점수 기반 랭킹 + 상관관계 필터로 재선택
-                    ret_map = {
-                        name: [r for d, r, _ in nav_data[name] if d <= date]
-                        for name in scores
-                    }
-                    selected = []
-                    for name, _ in ranked:
-                        if not selected:
-                            selected.append(name)
-                            continue
-                        max_corr = max(
-                            (_compute_corr(ret_map[name], ret_map[s]) or 0.0)
-                            for s in selected
-                        )
-                        if max_corr < CORR_THRESHOLD:
-                            selected.append(name)
-                        if len(selected) >= top_n:
-                            break
-                    if not selected and ranked:
-                        selected = [ranked[0][0]]
-
-                if selected:
+            selected = _select_strategies_at_date(
+                nav_data=nav_data,
+                date=date,
+                criterion=criterion,
+                top_n=top_n,
+                mdd_threshold=mdd_threshold,
+            )
+            if selected:
+                weights = {s: 1.0 / len(selected) for s in selected}
+                if date >= eval_start_date:
                     last_selection = selected
-                    weights = {s: 1.0 / len(selected) for s in selected}
                     for s in selected:
                         selection_count[s] += 1
 
@@ -299,7 +340,11 @@ def simulate(
 
             portfolio_nav *= (1.0 + daily_portfolio_ret)
 
-        results.append((date, portfolio_nav))
+        if date >= eval_start_date:
+            if base_nav is None:
+                base_nav = portfolio_nav
+            rebased_nav = portfolio_nav / base_nav if base_nav and base_nav > 1e-10 else portfolio_nav
+            results.append((date, rebased_nav))
 
     return results, last_selection, dict(selection_count)
 
@@ -513,6 +558,215 @@ def print_robust_n(nav_data: Dict, years: int, max_n: int = 10) -> int:
     return best_n
 
 
+def _mean(values: List[float]) -> float:
+    if not values:
+        return 0.0
+    return sum(values) / len(values)
+
+
+def _aggregate_metrics(metrics_list: List[Dict]) -> Dict[str, float]:
+    if not metrics_list:
+        return {}
+    return {
+        "cagr": _mean([m.get("cagr", 0.0) for m in metrics_list]),
+        "sharpe": _mean([m.get("sharpe", 0.0) for m in metrics_list]),
+        "mdd": _mean([m.get("mdd", 0.0) for m in metrics_list]),
+        "calmar": _mean([m.get("calmar", 0.0) for m in metrics_list]),
+        "final_nav": _mean([m.get("final_nav", 0.0) for m in metrics_list]),
+        "folds": float(len(metrics_list)),
+    }
+
+
+def _load_selection_settings() -> Dict[str, Optional[float]]:
+    config_path = Path(__file__).resolve().parent / "config.json"
+    if not config_path.exists():
+        return {"criteria": "corr_constrained", "top_n": 2, "mdd_filter_threshold": None}
+    raw = json.loads(config_path.read_text(encoding="utf-8"))
+    sel = raw.get("selection", {})
+    return {
+        "criteria": sel.get("criteria", "corr_constrained"),
+        "top_n": int(sel.get("top_n") or 2),
+        "mdd_filter_threshold": sel.get("mdd_filter_threshold"),
+    }
+
+
+def print_walk_forward(
+    nav_data: Dict[str, List[Tuple[str, float, float]]],
+    top_n: int,
+    train_years: int = 5,
+    test_years: int = 1,
+    mdd_threshold: Optional[float] = None,
+) -> str:
+    """롤링 walk-forward 검증 결과를 출력하고 권장 기준을 반환한다."""
+    all_dates = sorted(set(d for s in nav_data.values() for d, _, _ in s))
+    if not all_dates:
+        print("❌ walk-forward 대상 데이터 없음")
+        return "nav_momentum"
+
+    month_ends = get_month_ends(all_dates)
+    train_months = train_years * 12
+    test_months = test_years * 12
+    if len(month_ends) < train_months + test_months:
+        print("❌ walk-forward를 수행할 충분한 월말 데이터가 없습니다.")
+        return "nav_momentum"
+
+    print(f"\n{'═'*80}")
+    print(
+        f"  walk-forward 검증 | train={train_years}년 / test={test_years}년 / top_n={top_n}"
+    )
+    print(f"  기준: {', '.join(c for c in CRITERIA if c != 'equal_weight')}")
+    print(f"{'═'*80}")
+
+    fold_results: Dict[str, List[Dict]] = {criterion: [] for criterion in CRITERIA if criterion != "equal_weight"}
+    fold_wins: Dict[str, int] = defaultdict(int)
+    fold_count = 0
+
+    for end_idx in range(train_months, len(month_ends) - test_months + 1, test_months):
+        train_start = month_ends[end_idx - train_months]
+        test_start = month_ends[end_idx]
+        test_end = month_ends[end_idx + test_months - 1]
+        fold_count += 1
+
+        fold_metrics: Dict[str, Dict] = {}
+        for criterion in CRITERIA:
+            if criterion == "equal_weight":
+                continue
+            sim, _, _ = simulate(
+                nav_data,
+                criterion,
+                top_n,
+                years=99,
+                mdd_threshold=mdd_threshold,
+                history_start_date=train_start,
+                eval_start_date=test_start,
+                end_date=test_end,
+            )
+            m = compute_metrics(sim)
+            if not m:
+                continue
+            fold_results[criterion].append(m)
+            fold_metrics[criterion] = m
+
+        if fold_metrics:
+            best_fold = max(fold_metrics.items(), key=lambda item: item[1].get("sharpe", 0))[0]
+            fold_wins[best_fold] += 1
+            print(
+                f"  fold {fold_count:>2}: {train_start} -> {test_end} | "
+                f"best={best_fold} (Sharpe {fold_metrics[best_fold].get('sharpe', 0):.2f})"
+            )
+
+    if not fold_count:
+        print("❌ walk-forward fold를 생성하지 못했습니다.")
+        return "nav_momentum"
+
+    summary: Dict[str, Dict[str, float]] = {
+        criterion: _aggregate_metrics(metrics)
+        for criterion, metrics in fold_results.items()
+        if metrics
+    }
+    if not summary:
+        print("❌ walk-forward 결과가 없습니다.")
+        return "nav_momentum"
+
+    ranked = sorted(summary.items(), key=lambda item: item[1].get("sharpe", 0), reverse=True)
+
+    print(f"\n  {'기준':<18} {'CAGR':>7} {'Sharpe':>7} {'MDD':>7} {'Calmar':>7}  {'Folds':>5}")
+    print(f"  {'─'*70}")
+    for criterion, m in ranked:
+        print(
+            f"  {criterion:<18} {m.get('cagr',0):>6.1%} {m.get('sharpe',0):>7.2f}"
+            f" {m.get('mdd',0):>6.1%} {m.get('calmar',0):>7.2f}  {int(m.get('folds', 0)):>5}"
+        )
+
+    best = ranked[0][0]
+    print(f"\n  ✅ walk-forward 권장 기준: {best}")
+    print(f"  📊 fold 승리 횟수: {dict(sorted(fold_wins.items(), key=lambda x: -x[1]))}")
+    print(f"{'═'*80}\n")
+    return best
+
+
+def print_duplication_analysis(
+    nav_data: Dict[str, List[Tuple[str, float, float]]],
+    years: int,
+    criterion: str,
+    top_n: int,
+    mdd_threshold: Optional[float] = None,
+) -> None:
+    """전략 간 상관과 동시 선택 빈도를 출력한다."""
+    all_dates = sorted(set(d for s in nav_data.values() for d, _, _ in s))
+    if not all_dates:
+        print("❌ 중복도 분석 대상 데이터 없음")
+        return
+
+    cutoff = all_dates[-1]
+    start_year = int(cutoff[:4]) - years
+    start = f"{start_year}{cutoff[4:]}"
+    dates = [d for d in all_dates if d >= start]
+    month_ends_set = set(get_month_ends(dates))
+
+    names = sorted(nav_data.keys())
+    rets_map = {
+        name: [r for d, r, _ in nav_data[name] if d >= start]
+        for name in names
+    }
+
+    pair_corrs: List[Tuple[str, str, float]] = []
+    avg_corrs: List[Tuple[str, float]] = []
+    for name in names:
+        corrs = []
+        for other in names:
+            if other == name:
+                continue
+            corr = _compute_corr(rets_map.get(name, []), rets_map.get(other, []), 63)
+            if corr is not None:
+                corrs.append(corr)
+                if name < other:
+                    pair_corrs.append((name, other, corr))
+        avg_corrs.append((name, _mean(corrs)))
+
+    selection_counts: Dict[str, int] = defaultdict(int)
+    pair_counts: Dict[Tuple[str, str], int] = defaultdict(int)
+    total_rebalance = 0
+    for date in dates:
+        if date not in month_ends_set:
+            continue
+        selected = _select_strategies_at_date(nav_data, date, criterion, top_n, mdd_threshold)
+        if not selected:
+            continue
+        total_rebalance += 1
+        for name in selected:
+            selection_counts[name] += 1
+        for a, b in combinations(sorted(selected), 2):
+            pair_counts[(a, b)] += 1
+
+    print(f"\n{'═'*80}")
+    print(
+        f"  전략군 중복도 분석 | years={years} | criterion={criterion} | top_n={top_n} | "
+        f"rebalance={total_rebalance}"
+    )
+    print(f"{'═'*80}")
+
+    print("\n  [전략별 평균 상관]")
+    print(f"  {'전략':<18} {'avg_corr':>8} {'selected':>9}")
+    print(f"  {'─'*40}")
+    for name, avg_corr in sorted(avg_corrs, key=lambda x: x[1], reverse=True):
+        print(f"  {name:<18} {avg_corr:>8.3f} {selection_counts.get(name, 0):>9}")
+
+    print("\n  [가장 유사한 전략쌍]")
+    print(f"  {'전략 A':<18} {'전략 B':<18} {'corr':>7}")
+    print(f"  {'─'*50}")
+    for a, b, corr in sorted(pair_corrs, key=lambda x: x[2], reverse=True)[:10]:
+        print(f"  {a:<18} {b:<18} {corr:>7.3f}")
+
+    print("\n  [동시 선택 빈도]")
+    print(f"  {'전략 A':<18} {'전략 B':<18} {'count':>7}")
+    print(f"  {'─'*50}")
+    for (a, b), cnt in sorted(pair_counts.items(), key=lambda x: x[1], reverse=True)[:10]:
+        print(f"  {a:<18} {b:<18} {cnt:>7}")
+
+    print(f"{'═'*80}\n")
+
+
 def print_full_sweep(nav_data: Dict, years: int, top_k: int = 20) -> Tuple[str, int, Optional[float]]:
     """기준 × top_n 1~10 × MDD 임계값 전체 조합 파레토 분석.
 
@@ -694,11 +948,20 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="전략 선택 기준 백테스트")
     parser.add_argument("--top-n", type=int, default=3, help="선택할 전략 수 (기본 3)")
     parser.add_argument("--years", type=int, default=10, help="백테스트 기간 년수 (기본 10)")
+    parser.add_argument("--train-years", type=int, default=5, help="walk-forward train 기간 년수 (기본 5)")
+    parser.add_argument("--test-years", type=int, default=1, help="walk-forward test 기간 년수 (기본 1)")
     parser.add_argument("--sweep", action="store_true", help="top_n 1~15 Sharpe 히트맵")
+    parser.add_argument("--walk-forward", action="store_true", help="rolling out-of-sample 검증")
+    parser.add_argument("--duplication", action="store_true", help="전략 중복도 분석")
     parser.add_argument("--full", action="store_true",
                         help="전체 조합 파레토 분석 (criteria×top_n×mdd_threshold)")
-    parser.add_argument("--auto-apply", action="store_true",
-                        help="결과를 확인 없이 자동으로 config.json에 반영")
+    parser.add_argument(
+        "--apply-config",
+        "--auto-apply",
+        dest="apply_config",
+        action="store_true",
+        help="config.json에 추천 설정을 반영",
+    )
     parser.add_argument("--robust-n", action="store_true",
                         help="다기준 합의 기반 robust top_n 분석 (과적합 방지)")
     parser.add_argument("--generate-portfolio-nav", action="store_true",
@@ -720,9 +983,31 @@ def main() -> None:
         print_sweep(nav_data, args.years)
         return
 
+    if args.walk_forward:
+        settings = _load_selection_settings()
+        print_walk_forward(
+            nav_data,
+            top_n=args.top_n,
+            train_years=args.train_years,
+            test_years=args.test_years,
+            mdd_threshold=settings.get("mdd_filter_threshold"),
+        )
+        return
+
+    if args.duplication:
+        settings = _load_selection_settings()
+        print_duplication_analysis(
+            nav_data,
+            years=args.years,
+            criterion=str(settings.get("criteria", "corr_constrained")),
+            top_n=int(settings.get("top_n") or args.top_n),
+            mdd_threshold=settings.get("mdd_filter_threshold"),
+        )
+        return
+
     if args.full:
         best_criterion, best_n, best_mdd = print_full_sweep(nav_data, args.years)
-        _update_config(best_criterion, best_n, best_mdd, auto_apply=args.auto_apply)
+        _update_config(best_criterion, best_n, best_mdd, apply_config=args.apply_config)
         return
 
     if args.robust_n:
@@ -751,11 +1036,20 @@ def main() -> None:
         return
 
     best = print_results(all_metrics, args.top_n, args.years, all_counts)
-    _update_config_interactive(best, args.top_n)
+    if args.apply_config:
+        _update_config(best, args.top_n, None, apply_config=True)
 
 
-def _update_config(criterion: str, top_n, mdd_thr: Optional[float], auto_apply: bool = False) -> None:
-    """파레토 최적 설정으로 config.json 업데이트 여부 확인."""
+def _update_config(
+    criterion: str,
+    top_n,
+    mdd_thr: Optional[float],
+    apply_config: bool = False,
+) -> None:
+    """추천 설정을 config.json에 반영한다.
+
+    apply_config가 True일 때만 실제 파일을 수정한다.
+    """
     config_path = Path(__file__).resolve().parent / "config.json"
     if not config_path.exists():
         return
@@ -774,34 +1068,11 @@ def _update_config(criterion: str, top_n, mdd_thr: Optional[float], auto_apply: 
         print("  ✅ 이미 최적 설정입니다.")
         return
 
-    if auto_apply:
-        apply = True
-    else:
-        ans = input(f"  config.json을 권장 설정으로 업데이트할까요? [y/N] ").strip().lower()
-        apply = (ans == "y")
-
-    if apply:
+    if apply_config:
         raw.setdefault("selection", {})["criteria"] = criterion
         if isinstance(top_n, int):
             raw["selection"]["top_n"] = top_n
         raw["selection"]["mdd_filter_threshold"] = mdd_thr
-        config_path.write_text(json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8")
-        print("  ✅ config.json 업데이트 완료")
-
-
-def _update_config_interactive(best: str, top_n: int) -> None:
-    config_path = Path(__file__).resolve().parent / "config.json"
-    if not config_path.exists():
-        return
-    raw = json.loads(config_path.read_text(encoding="utf-8"))
-    current = raw.get("selection", {}).get("criteria", "")
-    if current == best:
-        return
-    print(f"  현재 config.json criteria: '{current}'")
-    ans = input(f"  config.json을 '{best}'로 업데이트할까요? [y/N] ").strip().lower()
-    if ans == "y":
-        raw.setdefault("selection", {})["criteria"] = best
-        raw["selection"]["top_n"] = top_n
         config_path.write_text(json.dumps(raw, ensure_ascii=False, indent=2), encoding="utf-8")
         print("  ✅ config.json 업데이트 완료")
 

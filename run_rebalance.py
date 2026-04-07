@@ -14,8 +14,8 @@ from app.config import (
     load_strategy_entries,
 )
 from app.assets.assets import merge_assets, reload_assets
-from app.analytics.csv_logger import save_holdings, save_momentum, save_ohlc_history, save_portfolio, save_strategy_signal
-from app.analytics.csv_logger import load_portfolio_nav, save_portfolio_nav
+from app.analytics.csv_logger import save_holdings, save_momentum, save_ohlc_history, save_portfolio, save_portfolio_state, save_strategy_signal
+from app.analytics.csv_logger import load_portfolio_nav, load_portfolio_state, save_portfolio_nav
 from app.execution.exchange import set_exchange_default
 from datetime import datetime
 
@@ -39,6 +39,7 @@ from app.execution.portfolio import build_group_orders, execute_orders, get_hold
 from app.analytics.report import write_report
 from app.strategy_selector import select_active_strategies
 from app.strategies import get_strategy
+from app.time_utils import trading_date_label
 
 
 def _run_strategy(strategy_entry, api, prices, today):
@@ -120,50 +121,50 @@ def _check_portfolio_mdd(selection_cfg: dict) -> tuple:
     return triggered, current_dd
 
 
-def _update_portfolio_nav(today: str, active_entries: list) -> None:
-    """active 전략의 최근 daily_return 가중 평균으로 portfolio_nav.csv를 업데이트."""
-    from app.analytics.csv_logger import load_strategy_nav
+def _update_portfolio_nav(today: str, total_equity: float, cash: float) -> None:
+    """실제 총자산 기준으로 portfolio_nav.csv를 업데이트한다.
 
-    if not active_entries:
-        return
-
-    all_nav = load_strategy_nav()
-    total_weight = 0.0
-    weighted_return = 0.0
-
-    for entry in active_entries:
-        name = entry["name"]
-        weight = entry.get("weight", 0.0)
-        nav_series = all_nav.get(name, [])
-        if not nav_series:
-            continue
-        # 가장 최근 daily_return 사용
-        last_row = nav_series[-1]
-        try:
-            dr = float(last_row.get("daily_return", 0))
-        except (ValueError, TypeError):
-            continue
-        weighted_return += weight * dr
-        total_weight += weight
-
-    if total_weight > 1e-10:
-        portfolio_dr = weighted_return / total_weight
-    else:
-        portfolio_dr = 0.0
-
-    # 기존 portfolio_nav 마지막 값 기준으로 NAV 계산
+    과거 파일에 total_equity 컬럼이 없는 경우, 첫 actual snapshot은 기존 NAV를
+    handoff 기준으로 이어받고 daily_return은 0으로 둔다.
+    """
     history = load_portfolio_nav()
+    state_history = load_portfolio_state()
     if history:
         try:
             last_nav = float(history[-1]["nav"])
         except (ValueError, TypeError):
             last_nav = 1.0
-        # 오늘 날짜가 이미 있으면 스킵 (save_portfolio_nav 내부에서도 체크)
     else:
         last_nav = 1.0
 
-    new_nav = last_nav * (1.0 + portfolio_dr)
-    save_portfolio_nav(today, new_nav, portfolio_dr)
+    prev_total_equity = None
+    if state_history:
+        prev_snapshot = None
+        for row in state_history:
+            if row.get("date", "") < today:
+                prev_snapshot = row
+            elif row.get("date", "") == today:
+                break
+        if prev_snapshot is None and len(state_history) > 1:
+            prev_snapshot = state_history[-2]
+        elif prev_snapshot is None and state_history and state_history[0].get("date", "") < today:
+            prev_snapshot = state_history[0]
+
+        if prev_snapshot is not None:
+            try:
+                prev_total_equity = float(prev_snapshot.get("total_equity", ""))
+            except (ValueError, TypeError):
+                prev_total_equity = None
+
+    if prev_total_equity and prev_total_equity > 1e-10:
+        portfolio_dr = (total_equity / prev_total_equity) - 1.0
+        new_nav = last_nav * (1.0 + portfolio_dr)
+    else:
+        portfolio_dr = 0.0
+        new_nav = last_nav
+
+    save_portfolio_nav(today, new_nav, portfolio_dr, total_equity)
+    save_portfolio_state(today, total_equity, cash)
 
 
 def main() -> None:
@@ -195,7 +196,7 @@ def main() -> None:
                 return
 
     # 오늘 날짜
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = trading_date_label()
 
     # 공통 데이터 조회
     holdings_detail = get_holdings_all_exchanges(api)
@@ -337,11 +338,30 @@ def main() -> None:
     # 주문 실행
     if args.report_only:
         print("\n📋 리포트 전용 모드: 매매 실행 생략")
+        execution_summary = {"sells": [], "buys": [], "failed": [], "succeeded": []}
     else:
-        execute_orders(api, all_orders, holdings_detail)
+        execution_summary = execute_orders(api, all_orders, holdings_detail)
+        refreshed_holdings = get_holdings_all_exchanges(api)
+        refreshed_cash = api.get_account_cash() or 0.0
+        refreshed_prices = {t: info.get("price") for t, info in refreshed_holdings.items() if info.get("price")}
+        refreshed_holding_value = sum(
+            (refreshed_prices.get(t, 0.0) or 0.0) * info["qty"]
+            for t, info in refreshed_holdings.items()
+        )
+        refreshed_total_equity = refreshed_cash + refreshed_holding_value
+
+        print("\n📌 주문 후 계정 스냅샷")
+        print(f"  현금: ${refreshed_cash:.2f}")
+        print(f"  보유 평가액: ${refreshed_holding_value:.2f}")
+        print(f"  총 자산(추정): ${refreshed_total_equity:.2f}")
+        if execution_summary["failed"]:
+            print("  ⚠️  일부 주문이 실패했습니다. 잔고와 체결 상태를 점검하세요.")
+        set_exchange_default(api)
 
     # 포트폴리오 NAV 업데이트 (report_only 여부 무관)
-    _update_portfolio_nav(today, active_entries)
+    nav_equity = total_equity if args.report_only else refreshed_total_equity
+    nav_cash = cash if args.report_only else refreshed_cash
+    _update_portfolio_nav(today, nav_equity, nav_cash)
 
 
 if __name__ == "__main__":

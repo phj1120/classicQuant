@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Tuple
 from app.assets.assets import reload_assets
 from app.constants import LOOKBACK_DAYS
 from app.analytics.csv_logger import load_ohlc_prices, save_strategy_nav
+from app.analytics.returns import compute_weighted_return
 from app.data.data_utils import parse_history
 from app.indicators.momentum import compute_momentum
 from app.strategy import BaseStrategy
@@ -163,23 +164,7 @@ def _calc_daily_return(
     curr_date: str,
 ) -> float:
     """전날 → 오늘의 가중 수익률 계산."""
-    from app.assets.assets import group_tickers
-    total_return = 0.0
-    total_weight = 0.0
-
-    for group, weight in targets.items():
-        # 그룹의 우선순위 티커 순서로 시도
-        for ticker in group_tickers(group):
-            prev_price = price_dict.get(ticker, {}).get(prev_date)
-            curr_price = price_dict.get(ticker, {}).get(curr_date)
-            if prev_price and curr_price and prev_price > 0:
-                ret = (curr_price / prev_price) - 1.0
-                total_return += weight * ret
-                total_weight += weight
-                break
-
-    # 데이터 없는 자산은 0% 수익률로 처리
-    return total_return
+    return compute_weighted_return(targets, price_dict, prev_date, curr_date)
 
 
 def run_all_backtests(
