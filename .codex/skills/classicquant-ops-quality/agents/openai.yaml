@@ -1,0 +1,3 @@
+interface:
+  display_name: "classicQuant 운영 품질"
+  short_description: "운영 안정성, 데이터 무결성, 코드 품질 개선"
