@@ -22,10 +22,12 @@ HOLDINGS_CSV = DATA_DIR / "holdings.csv"
 MOMENTUM_CSV = DATA_DIR / "momentum.csv"
 PORTFOLIO_CSV = DATA_DIR / "portfolio.csv"
 PORTFOLIO_STATE_CSV = DATA_DIR / "portfolio_state.csv"
+PORTFOLIO_NAV_MODEL_CSV = DATA_DIR / "portfolio_nav_model.csv"
+PORTFOLIO_NAV_ACTUAL_CSV = DATA_DIR / "portfolio_nav_actual.csv"
 OHLC_CSV = DATA_DIR / "ohlc_history.csv"
 STRATEGY_SIGNALS_CSV = DATA_DIR / "strategy_signals.csv"
 STRATEGY_NAV_CSV = DATA_DIR / "strategy_nav.csv"
-PORTFOLIO_NAV_CSV = DATA_DIR / "portfolio_nav.csv"
+PORTFOLIO_NAV_LEGACY_CSV = DATA_DIR / "portfolio_nav.csv"
 
 HOLDINGS_HEADER = ["date", "ticker", "group", "qty", "price", "value", "exchange"]
 MOMENTUM_HEADER = ["date", "strategy", "group", "score", "r1m", "r3m", "r6m", "r12m"]
@@ -34,7 +36,8 @@ PORTFOLIO_STATE_HEADER = ["date", "total_equity", "cash"]
 OHLC_HEADER = ["ticker", "date", "close"]
 STRATEGY_SIGNALS_HEADER = ["date", "strategy", "mode", "selected_assets", "top_score"]
 STRATEGY_NAV_HEADER = ["date", "strategy", "daily_return", "nav"]
-PORTFOLIO_NAV_HEADER = ["date", "nav", "daily_return", "total_equity"]
+PORTFOLIO_NAV_MODEL_HEADER = ["date", "nav", "daily_return"]
+PORTFOLIO_NAV_ACTUAL_HEADER = ["date", "nav", "daily_return", "total_equity"]
 
 
 def _ensure_dir() -> None:
@@ -73,12 +76,15 @@ def _append_rows(path: Path, header: List[str], rows: List[List]) -> None:
         writer.writerows(rows)
 
 
-def _migrate_portfolio_nav_csv_if_needed() -> None:
-    """구형 portfolio_nav.csv(3컬럼)를 4컬럼 형식으로 승격한다."""
-    if not PORTFOLIO_NAV_CSV.exists() or PORTFOLIO_NAV_CSV.stat().st_size == 0:
+def _migrate_legacy_portfolio_nav_to_actual_if_needed() -> None:
+    """레거시 portfolio_nav.csv를 actual NAV 파일로 승격/이관한다."""
+    if not PORTFOLIO_NAV_LEGACY_CSV.exists() or PORTFOLIO_NAV_LEGACY_CSV.stat().st_size == 0:
         return
 
-    with open(PORTFOLIO_NAV_CSV, "r", newline="", encoding="utf-8") as f:
+    if PORTFOLIO_NAV_ACTUAL_CSV.exists() and PORTFOLIO_NAV_ACTUAL_CSV.stat().st_size > 0:
+        return
+
+    with open(PORTFOLIO_NAV_LEGACY_CSV, "r", newline="", encoding="utf-8") as f:
         reader = csv.reader(f)
         rows = list(reader)
 
@@ -86,22 +92,41 @@ def _migrate_portfolio_nav_csv_if_needed() -> None:
         return
 
     header = rows[0]
-    if header == PORTFOLIO_NAV_HEADER:
-        return
-
-    if header == ["date", "nav", "daily_return"]:
-        migrated_rows = [PORTFOLIO_NAV_HEADER]
+    if header == PORTFOLIO_NAV_ACTUAL_HEADER:
+        migrated_rows = rows
+    elif header == ["date", "nav", "daily_return"]:
+        migrated_rows = [PORTFOLIO_NAV_ACTUAL_HEADER]
         for row in rows[1:]:
             if len(row) >= 3:
                 migrated_rows.append([row[0], row[1], row[2], ""])
-        with open(PORTFOLIO_NAV_CSV, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerows(migrated_rows)
-        return
+    else:
+        raise RuntimeError(
+            f"알 수 없는 portfolio_nav.csv 헤더 형식: {header}"
+        )
 
-    raise RuntimeError(
-        f"알 수 없는 portfolio_nav.csv 헤더 형식: {header}"
-    )
+    with open(PORTFOLIO_NAV_ACTUAL_CSV, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerows(migrated_rows)
+
+
+def _load_portfolio_nav_actual_rows_from_legacy() -> List[Dict]:
+    """레거시 portfolio_nav.csv를 actual 형식으로 메모리에서 읽는다."""
+    if not PORTFOLIO_NAV_LEGACY_CSV.exists() or PORTFOLIO_NAV_LEGACY_CSV.stat().st_size == 0:
+        return []
+
+    rows = []
+    with open(PORTFOLIO_NAV_LEGACY_CSV, "r", newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            normalized = {
+                "date": _normalize_date(row.get("date", "")),
+                "nav": row.get("nav", ""),
+                "daily_return": row.get("daily_return", ""),
+                "total_equity": row.get("total_equity", ""),
+            }
+            if normalized["date"]:
+                rows.append(normalized)
+    return sorted(rows, key=lambda r: r.get("date", ""))
 
 
 def _append_unique_rows(
@@ -441,33 +466,64 @@ def save_ohlc_history(ticker: str, history_data: List[Dict]) -> None:
         _append_rows(OHLC_CSV, OHLC_HEADER, rows_to_add)
 
 
-def save_portfolio_nav(
+def save_portfolio_nav_model(
+    date: str,
+    nav: float,
+    daily_return: float,
+) -> None:
+    """모델 포트폴리오 NAV를 portfolio_nav_model.csv에 기록한다."""
+    _ensure_dir()
+    date = _normalize_date(date)
+    if date in _existing_dates_in_csv(PORTFOLIO_NAV_MODEL_CSV, "date"):
+        return
+    _append_rows(
+        PORTFOLIO_NAV_MODEL_CSV,
+        PORTFOLIO_NAV_MODEL_HEADER,
+        [[date, f"{nav:.6f}", f"{daily_return:.6f}"]],
+    )
+
+
+def load_portfolio_nav_model() -> List[Dict]:
+    """portfolio_nav_model.csv 로드. 날짜 오름차순."""
+    if not PORTFOLIO_NAV_MODEL_CSV.exists():
+        return []
+    rows = []
+    with open(PORTFOLIO_NAV_MODEL_CSV, "r", newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            row["date"] = _normalize_date(row.get("date", ""))
+            rows.append(row)
+    return sorted(rows, key=lambda r: r.get("date", ""))
+
+
+def save_portfolio_nav_actual(
     date: str,
     nav: float,
     daily_return: float,
     total_equity: Optional[float] = None,
 ) -> None:
-    """포트폴리오 NAV를 portfolio_nav.csv에 기록 (중복 날짜 스킵)."""
+    """실제 포트폴리오 NAV를 portfolio_nav_actual.csv에 기록한다."""
     _ensure_dir()
-    _migrate_portfolio_nav_csv_if_needed()
+    _migrate_legacy_portfolio_nav_to_actual_if_needed()
     date = _normalize_date(date)
-    if date in _existing_dates_in_csv(PORTFOLIO_NAV_CSV, "date"):
+    if date in _existing_dates_in_csv(PORTFOLIO_NAV_ACTUAL_CSV, "date"):
         return
     equity_str = f"{total_equity:.2f}" if total_equity is not None else ""
     _append_rows(
-        PORTFOLIO_NAV_CSV,
-        PORTFOLIO_NAV_HEADER,
+        PORTFOLIO_NAV_ACTUAL_CSV,
+        PORTFOLIO_NAV_ACTUAL_HEADER,
         [[date, f"{nav:.6f}", f"{daily_return:.6f}", equity_str]],
     )
 
 
-def load_portfolio_nav() -> List[Dict]:
-    """portfolio_nav.csv 로드. 날짜 오름차순."""
-    if not PORTFOLIO_NAV_CSV.exists():
-        return []
+def load_portfolio_nav_actual() -> List[Dict]:
+    """portfolio_nav_actual.csv 로드. 날짜 오름차순."""
+    if not PORTFOLIO_NAV_ACTUAL_CSV.exists():
+        return _load_portfolio_nav_actual_rows_from_legacy()
     rows = []
-    with open(PORTFOLIO_NAV_CSV, "r", newline="", encoding="utf-8") as f:
+    with open(PORTFOLIO_NAV_ACTUAL_CSV, "r", newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
+            row["date"] = _normalize_date(row.get("date", ""))
             rows.append(row)
     return sorted(rows, key=lambda r: r.get("date", ""))

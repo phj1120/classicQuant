@@ -8,9 +8,9 @@
 
 - `python run_backfill.py`: 과거 가격을 적재하고 `data/strategy_nav.csv`를 다시 생성한다.
 - `python run_selection_backtest.py --top-n 4`: 선택 기준을 고정된 전략 수로 비교한다.
-- `python run_selection_backtest.py --generate-portfolio-nav`: `data/portfolio_nav.csv`를 재생성한다.
+- `python run_selection_backtest.py --generate-portfolio-nav`: `data/portfolio_nav_model.csv`를 재생성한다.
 - `python run_collect.py`: 실거래 없이 일별 신호와 NAV를 갱신한다.
-- `python run_rebalance.py --report-only`: 주문 없이 리포트와 선택 결과만 검증한다.
+- `python run_rebalance.py --report-only`: 주문 없이 리포트와 선택 결과를 검증한다. API 키가 없으면 `data/ohlc_history.csv` 기반 offline 모드로 동작한다.
 - `python run_rebalance.py`: 설정된 KIS 계좌 기준으로 실제 리밸런싱 로직을 수행한다.
 
 ## 코딩 스타일 및 네이밍 규칙

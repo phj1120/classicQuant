@@ -78,18 +78,21 @@ python run_selection_backtest.py --full
 "portfolio_mdd_limit": -0.20
 ```
 
-`data/portfolio_nav.csv` 기준 포트폴리오 전체 낙폭이 이 값 이하로 내려가면:
+`data/portfolio_nav_actual.csv` 기준 포트폴리오 전체 낙폭이 이 값 이하로 내려가면:
 - 모든 전략 선택 무시
 - `fallback_strategy`(기본 permanent)로 강제 전환
 
-**portfolio_nav.csv 백필 (최초 1회 필수):**
+**portfolio_nav_model.csv 백필 (최초 1회 권장):**
 
 ```bash
 python run_selection_backtest.py --generate-portfolio-nav
 ```
 
 `strategy_nav.csv` 전체 기간을 현재 config 기준으로 시뮬레이션하여 즉시 생성됩니다.
-이후 `run_rebalance.py` 실행마다 당일 NAV가 자동 누적됩니다.
+이 파일은 모델 포트폴리오 성과와 설정 검증에 사용됩니다.
+
+실제 운용 NAV는 `run_rebalance.py` 실행마다 `data/portfolio_nav_actual.csv`와
+`data/portfolio_state.csv`에 누적됩니다.
 
 ### 폴백(Fallback)
 
@@ -306,7 +309,9 @@ ASSETS: ClassVar[Dict] = {
 |------|------|
 | `data/strategy_signals.csv` | date, strategy, mode, selected_assets, top_score |
 | `data/strategy_nav.csv` | date, strategy, daily_return, nav |
-| `data/portfolio_nav.csv` | date, nav, daily_return (포트폴리오 합산, 서킷 브레이커용) |
+| `data/portfolio_nav_model.csv` | date, nav, daily_return (모델 포트폴리오 NAV, 연구/설정 검증용) |
+| `data/portfolio_nav_actual.csv` | date, nav, daily_return, total_equity (실제 포트폴리오 NAV, 서킷 브레이커용) |
+| `data/portfolio_state.csv` | date, total_equity, cash (실제 총자산 스냅샷) |
 | `data/momentum.csv` | date, strategy, group, score, r1m, r3m, r6m, r12m |
 | `data/holdings.csv` | date, ticker, group, qty, price, value, exchange |
 | `data/portfolio.csv` | date, total_equity, cash, strategy, group, target_weight, selected_ticker |

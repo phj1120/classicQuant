@@ -14,8 +14,18 @@ from app.config import (
     load_strategy_entries,
 )
 from app.assets.assets import merge_assets, reload_assets
-from app.analytics.csv_logger import save_holdings, save_momentum, save_ohlc_history, save_portfolio, save_portfolio_state, save_strategy_signal
-from app.analytics.csv_logger import load_portfolio_nav, load_portfolio_state, save_portfolio_nav
+from app.analytics.csv_logger import (
+    load_ohlc_prices,
+    load_portfolio_nav_actual,
+    load_portfolio_state,
+    save_holdings,
+    save_momentum,
+    save_ohlc_history,
+    save_portfolio,
+    save_portfolio_nav_actual,
+    save_portfolio_state,
+    save_strategy_signal,
+)
 from app.execution.exchange import set_exchange_default
 from datetime import datetime
 
@@ -28,6 +38,7 @@ from app.constants import (
     DEFAULT_CASH_BUFFER_PCT,
     DEFAULT_MIN_TRADE_VALUE_USD,
     DEFAULT_REBALANCE_THRESHOLD_PCT,
+    KIS_EXCHANGE_CODE,
     US_MARKET_TZ,
 )
 from app.data.kis_api import KoreaInvestmentAPI
@@ -40,6 +51,48 @@ from app.analytics.report import write_report
 from app.strategy_selector import select_active_strategies
 from app.strategies import get_strategy
 from app.time_utils import trading_date_label
+
+
+class CachedMarketDataAPI:
+    """report-only 무키 환경에서 로컬 OHLC 캐시를 읽는 최소 API 어댑터."""
+
+    def __init__(self, price_history):
+        self.price_history = price_history
+        self.exchange_code = KIS_EXCHANGE_CODE
+
+    def get_historical_data(
+        self,
+        ticker: str,
+        period: str = "D",
+        min_records: int = 260,
+        max_pages: int = 5,
+    ):
+        del period, min_records, max_pages
+        series = self.price_history.get(ticker, {})
+        if not series:
+            return None
+        return [
+            {"xymd": date.replace("-", ""), "clos": price}
+            for date, price in sorted(series.items())
+        ]
+
+    def get_current_price(self, ticker: str):
+        series = self.price_history.get(ticker, {})
+        if not series:
+            return None
+        latest_date = max(series)
+        return float(series[latest_date])
+
+
+def _build_cached_report_api() -> CachedMarketDataAPI:
+    price_history = load_ohlc_prices()
+    if not price_history:
+        raise RuntimeError(
+            "report-only 무키 모드를 실행하려면 data/ohlc_history.csv가 필요합니다. "
+            "먼저 run_backfill.py 또는 run_collect.py로 가격 데이터를 적재하세요."
+        )
+    print("ℹ️  API 키 없음: ohlc_history.csv 기반 offline report-only 모드로 실행합니다.")
+    return CachedMarketDataAPI(price_history)
 
 
 def _run_strategy(strategy_entry, api, prices, today):
@@ -92,7 +145,7 @@ def _run_strategy(strategy_entry, api, prices, today):
 
 
 def _check_portfolio_mdd(selection_cfg: dict) -> tuple:
-    """portfolio_nav.csv 기반 포트폴리오 MDD 체크.
+    """portfolio_nav_actual.csv 기반 포트폴리오 MDD 체크.
 
     Returns:
         (triggered: bool, current_dd: float)
@@ -101,7 +154,7 @@ def _check_portfolio_mdd(selection_cfg: dict) -> tuple:
     if mdd_limit is None:
         return False, 0.0
 
-    history = load_portfolio_nav()
+    history = load_portfolio_nav_actual()
     if not history:
         return False, 0.0
 
@@ -121,13 +174,13 @@ def _check_portfolio_mdd(selection_cfg: dict) -> tuple:
     return triggered, current_dd
 
 
-def _update_portfolio_nav(today: str, total_equity: float, cash: float) -> None:
-    """실제 총자산 기준으로 portfolio_nav.csv를 업데이트한다.
+def _update_portfolio_nav_actual(today: str, total_equity: float, cash: float) -> None:
+    """실제 총자산 기준으로 portfolio_nav_actual.csv를 업데이트한다.
 
     과거 파일에 total_equity 컬럼이 없는 경우, 첫 actual snapshot은 기존 NAV를
     handoff 기준으로 이어받고 daily_return은 0으로 둔다.
     """
-    history = load_portfolio_nav()
+    history = load_portfolio_nav_actual()
     state_history = load_portfolio_state()
     if history:
         try:
@@ -163,7 +216,7 @@ def _update_portfolio_nav(today: str, total_equity: float, cash: float) -> None:
         portfolio_dr = 0.0
         new_nav = last_nav
 
-    save_portfolio_nav(today, new_nav, portfolio_dr, total_equity)
+    save_portfolio_nav_actual(today, new_nav, portfolio_dr, total_equity)
     save_portfolio_state(today, total_equity, cash)
 
 
@@ -177,15 +230,23 @@ def main() -> None:
     key_path = base_dir / "key.json"
 
     raw = load_config(config_path)
-    key = load_key(key_path if key_path.exists() else None)
-
-    kis_config = build_kis_config(key)
     strategy_cfg = build_strategy_config(raw)
     strategy_entries = load_strategy_entries(raw)
     selection_cfg = load_selection_config(raw)
+    offline_report_only = False
 
-    # 토큰 캐싱은 key 파일에 저장 (로컬 실행 시)
-    api = KoreaInvestmentAPI(kis_config, config_file=str(key_path) if key_path.exists() else None)
+    try:
+        key = load_key(key_path if key_path.exists() else None)
+    except RuntimeError as exc:
+        if not args.report_only:
+            raise
+        print(f"ℹ️  {exc}")
+        offline_report_only = True
+        api = _build_cached_report_api()
+    else:
+        kis_config = build_kis_config(key)
+        # 토큰 캐싱은 key 파일에 저장 (로컬 실행 시)
+        api = KoreaInvestmentAPI(kis_config, config_file=str(key_path) if key_path.exists() else None)
 
     if not args.report_only:
         if ZoneInfo is not None:
@@ -199,8 +260,12 @@ def main() -> None:
     today = trading_date_label()
 
     # 공통 데이터 조회
-    holdings_detail = get_holdings_all_exchanges(api)
-    cash = api.get_account_cash() or 0.0
+    if offline_report_only:
+        holdings_detail = {}
+        cash = 0.0
+    else:
+        holdings_detail = get_holdings_all_exchanges(api)
+        cash = api.get_account_cash() or 0.0
     balance_prices = {t: info.get("price") for t, info in holdings_detail.items() if info.get("price")}
     prices = dict(balance_prices)
 
@@ -222,7 +287,8 @@ def main() -> None:
     all_strategy_assets = [get_strategy(e["name"]).assets for e in strategy_entries]
     merge_assets(all_strategy_assets)
     from app.assets.assets import group_for_ticker
-    save_holdings(today, holdings_detail, prices, group_for_ticker)
+    if holdings_detail:
+        save_holdings(today, holdings_detail, prices, group_for_ticker)
 
     # Phase 1: 전략별 신호 수집 (전체 전략)
     all_results: dict = {}   # name → (weighted_targets, scores, targets, strategy)
@@ -329,7 +395,8 @@ def main() -> None:
                 data["selected_tickers"][group] = selected_tickers[group]
 
     # CSV 로깅: 포트폴리오 스냅샷
-    save_portfolio(today, total_equity, cash, all_report_data, merged_targets, selected_tickers)
+    if not offline_report_only:
+        save_portfolio(today, total_equity, cash, all_report_data, merged_targets, selected_tickers)
 
     # 리포트 생성
     report_path = write_report(all_report_data, Path(__file__).resolve().parent / "reports")
@@ -361,7 +428,11 @@ def main() -> None:
     # 포트폴리오 NAV 업데이트 (report_only 여부 무관)
     nav_equity = total_equity if args.report_only else refreshed_total_equity
     nav_cash = cash if args.report_only else refreshed_cash
-    _update_portfolio_nav(today, nav_equity, nav_cash)
+    if offline_report_only:
+        print("ℹ️  offline report-only 모드에서는 actual NAV/portfolio snapshot을 갱신하지 않습니다.")
+        return
+
+    _update_portfolio_nav_actual(today, nav_equity, nav_cash)
 
 
 if __name__ == "__main__":

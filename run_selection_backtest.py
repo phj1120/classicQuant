@@ -10,6 +10,7 @@ data/strategy_nav.csv의 NAV 시계열을 이용해 선택 기준 × top_n × MD
     python run_selection_backtest.py --walk-forward   # rolling out-of-sample 검증
     python run_selection_backtest.py --duplication    # 전략 중복도 분석
     python run_selection_backtest.py --full           # 전체 조합 파레토 분석
+    python run_selection_backtest.py --generate-portfolio-nav  # portfolio_nav_model.csv 생성
 """
 
 import argparse
@@ -903,7 +904,7 @@ def _find_pareto_front(results: List[Dict]) -> List[Dict]:
 # ── 메인 ──────────────────────────────────────────────────────────────────────
 
 def _generate_portfolio_nav(nav_data: Dict) -> None:
-    """현재 config 기준 포트폴리오 NAV를 시뮬레이션 후 data/portfolio_nav.csv에 저장.
+    """현재 config 기준 모델 포트폴리오 NAV를 시뮬레이션 후 저장한다.
 
     strategy_nav.csv의 전체 기간을 사용하므로 즉시 동작 가능.
     """
@@ -928,7 +929,7 @@ def _generate_portfolio_nav(nav_data: Dict) -> None:
         print("❌ 시뮬레이션 결과 없음")
         return
 
-    portfolio_nav_path = DATA_DIR / "portfolio_nav.csv"
+    portfolio_nav_path = DATA_DIR / "portfolio_nav_model.csv"
     with open(portfolio_nav_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["date", "nav", "daily_return"])
@@ -939,7 +940,7 @@ def _generate_portfolio_nav(nav_data: Dict) -> None:
             prev_nav = nav
 
     m = compute_metrics(results)
-    print(f"✅ portfolio_nav.csv 저장: {len(results)}행, {results[0][0]} ~ {results[-1][0]}")
+    print(f"✅ portfolio_nav_model.csv 저장: {len(results)}행, {results[0][0]} ~ {results[-1][0]}")
     print(f"   CAGR={m.get('cagr', 0):.1%}  Sharpe={m.get('sharpe', 0):.2f}  MDD={m.get('mdd', 0):.1%}")
     print(f"   마지막 선택: {', '.join(last_sel)}")
 
@@ -965,7 +966,7 @@ def main() -> None:
     parser.add_argument("--robust-n", action="store_true",
                         help="다기준 합의 기반 robust top_n 분석 (과적합 방지)")
     parser.add_argument("--generate-portfolio-nav", action="store_true",
-                        help="현재 config 기준으로 portfolio_nav.csv 백필 생성")
+                        help="현재 config 기준으로 portfolio_nav_model.csv 백필 생성")
     args = parser.parse_args()
 
     nav_data = load_nav_data()

@@ -32,9 +32,9 @@
 
 변경 내용:
 
-- `portfolio_nav.csv` 갱신 기준을 전략 NAV 가중평균에서 실제 총자산 스냅샷 기반으로 변경했다.
-- `portfolio_state.csv`를 추가해 일별 총자산/현금 스냅샷을 별도 보관한다.
-- 기존 3컬럼 `portfolio_nav.csv`는 4컬럼 형식으로 자동 승격되도록 마이그레이션 로직을 넣었다.
+- 모델 포트폴리오 NAV는 `portfolio_nav_model.csv`로 분리했다.
+- 실제 포트폴리오 NAV는 `portfolio_nav_actual.csv` + `portfolio_state.csv` 기반으로 관리하도록 바꿨다.
+- 기존 3컬럼 `portfolio_nav.csv`는 actual NAV 호환 입력으로 자동 승격되도록 마이그레이션 로직을 넣었다.
 
 의미:
 
@@ -45,6 +45,7 @@
 
 - 과거 전체 히스토리를 실계좌 총자산 기준으로 재구성한 것은 아니다.
 - 실제 체결 기준 realized/unrealized PnL ledger까지는 아직 없다.
+- 현재 저장소에는 `portfolio_nav_actual.csv`, `portfolio_state.csv` 실데이터가 아직 쌓여 있지 않다.
 
 ### 2-2. 자본배분 버그 제거
 

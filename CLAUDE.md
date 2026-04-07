@@ -16,13 +16,13 @@ cp key.json.example key.json   # API 키 입력
 # 최초 1회: 과거 NAV 데이터 생성
 python run_backfill.py
 
-# 최초 1회: 포트폴리오 NAV 백필 (MDD 서킷 브레이커용)
+# 최초 1회: 모델 포트폴리오 NAV 백필 (설정 검증용)
 python run_selection_backtest.py --generate-portfolio-nav
 
 # 매일: 신호 + NAV 수집 (매매 없음)
 python run_collect.py
 
-# 리포트만 생성 (매매 없음)
+# 리포트만 생성 (매매 없음, 키가 없으면 offline 캐시 모드)
 python run_rebalance.py --report-only
 
 # 리밸런싱 실행 (실제 매매 발생)
@@ -81,7 +81,7 @@ run_rebalance.py      → 전략 선택 → 포트폴리오 주문 생성 → KI
 
 **전략 선택** (`app/strategy_selector.py`)
 - `corr_constrained` (권장): sharpe_12m 랭킹 후 상관관계 0.7 이상 전략 제외하여 top_n 선택
-- 포트폴리오 MDD 서킷 브레이커: `data/portfolio_nav.csv` 기준, 한계 초과 시 fallback_strategy로 강제 전환
+- 포트폴리오 MDD 서킷 브레이커: `data/portfolio_nav_actual.csv` 기준, 한계 초과 시 fallback_strategy로 강제 전환
 
 **포트폴리오 실행** (`app/execution/portfolio.py`)
 - `build_group_orders()`: 목표 비중 → 매수/매도 주문 생성 (priority 1 티커 → 예산 부족 시 alternative chain으로 폴백)
@@ -101,7 +101,10 @@ run_rebalance.py      → 전략 선택 → 포트폴리오 주문 생성 → KI
 ### 데이터 파일 (`data/`)
 - `ohlc_history.csv`: 자산 가격 히스토리 (백필/수집 결과)
 - `strategy_nav.csv`: 전략별 NAV 누적 (전략 선택 기준 계산에 사용)
-- `portfolio_nav.csv`: 포트폴리오 합산 NAV (MDD 서킷 브레이커에 사용)
+- `portfolio_nav_model.csv`: 모델 포트폴리오 NAV (설정 검증/리서치용)
+- `portfolio_nav_actual.csv`: 실제 포트폴리오 NAV (실전 MDD 서킷 브레이커용)
+- `portfolio_state.csv`: 실제 총자산/현금 스냅샷
+- `portfolio_nav.csv`: 레거시 포맷, actual NAV 이관 호환용
 - `strategy_signals.csv`: 일별 전략 신호
 
 ### GitHub Actions 브랜치 전략
