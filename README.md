@@ -203,6 +203,7 @@ python run_rebalance.py
 ```
 
 > `key.json`은 `.gitignore`에 포함되어 있어 커밋되지 않습니다.
+> 리포트와 daily CSV의 날짜 라벨은 로컬 시간이 아니라 미국 시장 거래일 기준입니다.
 
 ## 프로젝트 구조
 

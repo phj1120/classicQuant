@@ -21,22 +21,22 @@
 - 상태: `[x]`
 - 우선순위: Critical
 - 목표:
-  - `portfolio_nav.csv`가 실제 보유 포트폴리오 기준 NAV를 반영하도록 수정
+  - `portfolio_nav_actual.csv`가 실제 보유 포트폴리오 기준 NAV를 반영하도록 수정
   - 서킷브레이커가 내부 추정치가 아니라 운용 계정 상태를 기준으로 작동하도록 변경
 - 관련 파일:
   - [run_rebalance.py](/Users/parkh/Dev/git/Project/classicQuant/run_rebalance.py)
   - [app/analytics/csv_logger.py](/Users/parkh/Dev/git/Project/classicQuant/app/analytics/csv_logger.py)
 - 완료 조건:
   - 실제 보유/현금 기준 NAV 계산 로직 존재
-  - `portfolio_nav.csv` 갱신이 일관된 거래일 기준으로 수행
+  - `portfolio_nav_actual.csv` 갱신이 일관된 거래일 기준으로 수행
   - 서킷브레이커 입력과 리포트 숫자가 동일한 기준을 사용
 - 검증:
   - 임시 CSV에서 구형 3컬럼 `portfolio_nav.csv` 자동 승격 확인
   - 임시 상태에서 `1000.00 -> 1100.00` 총자산 변동이 NAV `+10%`로 반영되는지 확인
 - 진행 메모:
   - 2026-04-07 `portfolio_state.csv`를 추가해 실제 총자산 스냅샷을 보관
-  - 2026-04-07 `portfolio_nav.csv`가 이전 일자 `total_equity` 대비 수익률로 갱신되도록 변경
-  - 2026-04-07 기존 `portfolio_nav.csv`는 저장 시 자동 마이그레이션되도록 처리
+  - 2026-04-07 `portfolio_nav_actual.csv`가 이전 일자 `total_equity` 대비 수익률로 갱신되도록 변경
+  - 2026-04-07 기존 `portfolio_nav.csv`는 actual NAV 저장 시 자동 마이그레이션되도록 처리
 
 ### Q-02. 선택 전략 수 부족 시 비중 재정규화
 

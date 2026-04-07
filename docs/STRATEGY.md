@@ -91,8 +91,11 @@ python run_selection_backtest.py --generate-portfolio-nav
 `strategy_nav.csv` 전체 기간을 현재 config 기준으로 시뮬레이션하여 즉시 생성됩니다.
 이 파일은 모델 포트폴리오 성과와 설정 검증에 사용됩니다.
 
-실제 운용 NAV는 `run_rebalance.py` 실행마다 `data/portfolio_nav_actual.csv`와
-`data/portfolio_state.csv`에 누적됩니다.
+실제 운용 NAV는 API 키가 설정된 `run_rebalance.py` 실행에서만
+`data/portfolio_nav_actual.csv`와 `data/portfolio_state.csv`에 누적됩니다.
+
+`--report-only`를 API 키 없이 실행하는 offline 모드는
+전략 선택과 리포트 검증 전용이며 actual NAV를 갱신하지 않습니다.
 
 ### 폴백(Fallback)
 
