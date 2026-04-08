@@ -127,3 +127,31 @@ run_rebalance.py      → 전략 선택 → 포트폴리오 주문 생성 → KI
 - 변동성/상관관계: `app/indicators/factor.py` + `histories` (FAA, EAA)
 - 거시경제 지표: `app/data/fred_api.py` (LAA)
 - 정적 배분: 고정 비중 딕셔너리 반환 (Permanent, All Weather)
+
+## 코딩 스타일
+
+- 들여쓰기: 4칸, 모듈·함수·변수명: `snake_case`
+- 복잡한 함수에만 짧은 docstring 추가
+- 저장소 내부 가이드, 운영 메모, 리뷰 요약 등 내부 문서는 한국어로 작성하고 최신화 유지
+
+## 테스트
+
+전용 `tests/` 디렉터리 없음. 변경한 기능은 관련 스크립트를 직접 실행해 검증:
+- 전략 선택 로직 변경 → `python run_selection_backtest.py --full` 또는 `--top-n`
+- 실거래 경로에 닿는 수정 → `python run_rebalance.py --report-only`로 먼저 점검
+- 결과 CSV와 리포트가 `data/`, `reports/`에 의도대로 반영되는지 확인
+
+## 커밋 및 PR
+
+- 한 커밋에 하나의 논리적 변경, 메시지는 명령형으로 간결하게 (예: `리밸런싱 임계값 계산 오류 수정`)
+- PR에는 운영 영향, 변경된 설정값·Secret 여부, 수동 검증 내용 포함
+- 출력 형식이 바뀐 경우 리포트 경로나 스크린샷 첨부
+
+## 보안 및 데이터 주의사항
+
+- `key.json`은 커밋 금지. 소스에는 `key.json.example`만 유지
+- `data/`, `reports/`는 운영 기록으로 취급 — 과거 산출물 복구 작업이 아닌 한 수동 편집 지양
+
+## 작업 원칙
+
+모호한 요구사항이나 설계 결정이 있다면 임의로 판단하지 말고, 작업 전에 사용자에게 확인한다.

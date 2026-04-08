@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat /Users/parkh/.claude/plugins/repos/*/skills/*/SKILL.md)"
+    ]
+  }
+}
