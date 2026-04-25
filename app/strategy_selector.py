@@ -99,7 +99,7 @@ def select_active_strategies(
     if criteria in _NAV_CRITERIA:
         candidates = _select_by_nav_score(
             strategy_entries, criteria, top_n, mdd_threshold,
-            rolling_peak_window, mdd_threshold_ratio,
+            rolling_peak_window, mdd_threshold_ratio, selection_cfg,
         )
     elif criteria == "offensive_mode":
         candidates = _select_by_offensive_mode(
@@ -179,6 +179,7 @@ def _select_by_nav_score(
     mdd_threshold: Optional[float],
     rolling_peak_window: int = 252,
     mdd_threshold_ratio: Optional[float] = None,
+    cfg: Optional[Dict] = None,
 ) -> List[Tuple[str, float]]:
     """strategy_nav.csv NAV 데이터 기반 다양한 기준으로 전략 선택."""
     from app.analytics.csv_logger import load_strategy_nav
@@ -236,7 +237,10 @@ def _select_by_nav_score(
     candidates.sort(key=lambda x: x[1], reverse=True)
 
     if criteria == "corr_constrained":
-        candidates = _apply_corr_filter(candidates, all_nav, top_n)
+        corr_threshold = (cfg or {}).get("corr_threshold", 0.7)
+        corr_window = (cfg or {}).get("corr_window", 63)
+        candidates = _apply_corr_filter(candidates, all_nav, top_n,
+                                        corr_threshold=corr_threshold, window=corr_window)
     elif top_n is not None:
         candidates = candidates[:top_n]
 

@@ -113,5 +113,7 @@ def load_selection_config(raw: Dict) -> Dict:
         "mdd_filter_threshold": None,
         "min_active_strategies": 1,
         "fallback_strategy": "permanent",
+        "corr_threshold": 0.7,
+        "corr_window": 63,
     }
     return {**defaults, **raw.get("selection", {})}
