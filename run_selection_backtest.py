@@ -202,6 +202,8 @@ def _select_strategies_at_date(
     criterion: str,
     top_n: int,
     mdd_threshold: Optional[float] = None,
+    corr_threshold: float = CORR_THRESHOLD,
+    corr_window: int = 63,
 ) -> List[str]:
     """특정 날짜 기준으로 선택된 전략 목록을 반환한다."""
     scores: Dict[str, float] = {}
@@ -241,10 +243,10 @@ def _select_strategies_at_date(
                 selected.append(name)
                 continue
             max_corr = max(
-                (_compute_corr(ret_map[name], ret_map[s]) or 0.0)
+                (_compute_corr(ret_map[name], ret_map[s], corr_window) or 0.0)
                 for s in selected
             )
-            if max_corr < CORR_THRESHOLD:
+            if max_corr < corr_threshold:
                 selected.append(name)
             if len(selected) >= top_n:
                 break
@@ -265,6 +267,8 @@ def simulate(
     history_start_date: Optional[str] = None,
     eval_start_date: Optional[str] = None,
     end_date: Optional[str] = None,
+    corr_threshold: float = CORR_THRESHOLD,
+    corr_window: int = 63,
 ) -> Tuple[List[Tuple[str, float]], List[str], Dict[str, int]]:
     """선택 기준별 포트폴리오 시뮬레이션.
 
@@ -320,6 +324,8 @@ def simulate(
                 criterion=criterion,
                 top_n=top_n,
                 mdd_threshold=mdd_threshold,
+                corr_threshold=corr_threshold,
+                corr_window=corr_window,
             )
             if selected:
                 weights = {s: 1.0 / len(selected) for s in selected}
@@ -901,6 +907,45 @@ def _find_pareto_front(results: List[Dict]) -> List[Dict]:
     return pareto
 
 
+# ── corr-sweep ────────────────────────────────────────────────────────────────
+
+def print_corr_sweep(nav_data: Dict, top_n: int, years: int) -> None:
+    """corr_threshold × corr_window 조합별 Sharpe 히트맵 (corr_constrained 기준)."""
+    thresholds = [0.5, 0.6, 0.7, 0.8, 0.9]
+    windows = [21, 42, 63, 126]
+    col_w = 7
+
+    print(f"\n{'═'*72}")
+    print(f"  corr_constrained 파라미터 스윕 | top_n={top_n} | 기간={years}년 | 지표=Sharpe")
+    print(f"{'═'*72}")
+    header = f"  {'corr_thr \\ window':<20}" + "".join(f" {'w='+str(w):>{col_w}}" for w in windows)
+    print(header)
+    print(f"  {'─'*60}")
+
+    for thr in thresholds:
+        row = f"  {thr:<20.1f}"
+        best_in_row = float("-inf")
+        sharpes = []
+        for w in windows:
+            sim, _, _ = simulate(nav_data, "corr_constrained", top_n, years,
+                                 corr_threshold=thr, corr_window=w)
+            m = compute_metrics(sim)
+            s = m.get("sharpe", float("nan"))
+            sharpes.append(s)
+            if not math.isnan(s):
+                best_in_row = max(best_in_row, s)
+        for s in sharpes:
+            if math.isnan(s):
+                row += f"{'N/A':>{col_w}}"
+            elif not math.isnan(best_in_row) and abs(s - best_in_row) < 0.01:
+                row += f"\033[1m{s:>{col_w}.2f}\033[0m"
+            else:
+                row += f"{s:>{col_w}.2f}"
+        print(row)
+
+    print(f"{'═'*72}\n")
+
+
 # ── 메인 ──────────────────────────────────────────────────────────────────────
 
 def _generate_portfolio_nav(nav_data: Dict) -> None:
@@ -947,7 +992,7 @@ def _generate_portfolio_nav(nav_data: Dict) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="전략 선택 기준 백테스트")
-    parser.add_argument("--top-n", type=int, default=3, help="선택할 전략 수 (기본 3)")
+    parser.add_argument("--top-n", type=int, default=None, help="선택할 전략 수 (기본 3, --corr-sweep 시 기본 2)")
     parser.add_argument("--years", type=int, default=10, help="백테스트 기간 년수 (기본 10)")
     parser.add_argument("--train-years", type=int, default=5, help="walk-forward train 기간 년수 (기본 5)")
     parser.add_argument("--test-years", type=int, default=1, help="walk-forward test 기간 년수 (기본 1)")
@@ -967,12 +1012,18 @@ def main() -> None:
                         help="다기준 합의 기반 robust top_n 분석 (과적합 방지)")
     parser.add_argument("--generate-portfolio-nav", action="store_true",
                         help="현재 config 기준으로 portfolio_nav_model.csv 백필 생성")
+    parser.add_argument("--corr-sweep", action="store_true",
+                        help="corr_threshold × corr_window 조합별 Sharpe 히트맵 (corr_constrained)")
     args = parser.parse_args()
 
     nav_data = load_nav_data()
     if not nav_data:
         print("❌ data/strategy_nav.csv 없음. run_backfill.py를 먼저 실행하세요.")
         return
+
+    # --top-n 미지정 시 모드별 기본값 적용
+    if args.top_n is None:
+        args.top_n = 2 if args.corr_sweep else 3
 
     print(f"\n전략 수: {len(nav_data)}개  |  전략: {', '.join(sorted(nav_data.keys()))}")
     all_dates = sorted(set(d for s in nav_data.values() for d, _, _ in s))
@@ -1017,6 +1068,10 @@ def main() -> None:
 
     if args.generate_portfolio_nav:
         _generate_portfolio_nav(nav_data)
+        return
+
+    if args.corr_sweep:
+        print_corr_sweep(nav_data, args.top_n, args.years)
         return
 
     # 기본 모드: 단일 top_n 비교
