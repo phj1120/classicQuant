@@ -90,6 +90,54 @@ def fetch_fred_series(series_id: str) -> List[Tuple[str, float]]:
     return result
 
 
+def get_usdkrw_rate(date: str = None) -> Optional[float]:
+    """FRED DEXKOUS에서 USD/KRW 환율 조회.
+
+    DEXKOUS: Korean Won per U.S. Dollar (일별, 영업일 기준).
+
+    Args:
+        date: YYYY-MM-DD 형식. None이면 최신값 반환.
+              날짜 지정 시 해당 날짜 이전 마지막 값 반환.
+
+    Returns:
+        환율 (float) 또는 None (조회 실패).
+    """
+    try:
+        url = _FRED_CSV.format(series_id="DEXKOUS")
+        with urllib.request.urlopen(url, timeout=_TIMEOUT) as resp:
+            content = resp.read().decode("utf-8")
+
+        rows: List[Tuple[str, float]] = []
+        reader = csv.reader(io.StringIO(content))
+        next(reader, None)
+        for row in reader:
+            if len(row) < 2 or row[1].strip() in (".", ""):
+                continue
+            try:
+                rows.append((row[0].strip(), float(row[1].strip())))
+            except ValueError:
+                continue
+
+        if not rows:
+            return None
+
+        rows.sort(key=lambda x: x[0])
+
+        if date is None:
+            return rows[-1][1]
+
+        # date 이전 마지막 값 반환
+        result = None
+        for d, v in rows:
+            if d <= date:
+                result = v
+            else:
+                break
+        return result
+    except Exception:
+        return None
+
+
 def get_unemployment_signal(lookback_months: int = 12) -> Optional[bool]:
     """실업률 방어 시그널.
 

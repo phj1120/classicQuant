@@ -30,9 +30,13 @@ def _prices_up_to(
     ticker: str,
     cutoff: str,
 ) -> List[float]:
-    """특정 날짜 이하의 가격 시계열(오름차순)을 반환한다."""
+    """특정 날짜 미만의 가격 시계열(오름차순)을 반환한다.
+
+    cutoff 당일 종가를 제외하여 look-ahead 바이어스를 방지한다.
+    월말 신호는 전일 종가 기준으로 산출되고, 당일(월말)에 진입하는 흐름과 일치한다.
+    """
     data = price_dict.get(ticker, {})
-    dates = sorted(d for d in data if d <= cutoff)
+    dates = sorted(d for d in data if d < cutoff)
     return [data[d] for d in dates]
 
 
