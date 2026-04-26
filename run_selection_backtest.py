@@ -1014,6 +1014,8 @@ def main() -> None:
                         help="현재 config 기준으로 portfolio_nav_model.csv 백필 생성")
     parser.add_argument("--corr-sweep", action="store_true",
                         help="corr_threshold × corr_window 조합별 Sharpe 히트맵 (corr_constrained)")
+    parser.add_argument("--cost-model", action="store_true",
+                        help="비용 모델 적용 gross vs net NAV 비교")
     args = parser.parse_args()
 
     nav_data = load_nav_data()
@@ -1072,6 +1074,41 @@ def main() -> None:
 
     if args.corr_sweep:
         print_corr_sweep(nav_data, args.top_n, args.years)
+        return
+
+    if args.cost_model:
+        from app.analytics.cost_model import compute_net_nav_series, ROUNDTRIP_COST_RATE
+        from app.analytics.csv_logger import load_strategy_nav
+
+        print(f"\n비용 모델 분석 (왕복 비용률: {ROUNDTRIP_COST_RATE*100:.3f}%)")
+        nav_data_full = load_strategy_nav()
+        if not nav_data_full:
+            print("strategy_nav.csv 데이터 없음")
+        else:
+            gross_rows = []
+            for strategy, rows in nav_data_full.items():
+                for row in rows:
+                    gross_rows.append({
+                        "date": row["date"],
+                        "strategy": strategy,
+                        "nav": row.get("nav", "1.0"),
+                        "daily_return": row.get("daily_return", "0.0"),
+                    })
+
+            net_rows = compute_net_nav_series(gross_rows, [])
+
+            final_by_strategy: Dict[str, Dict] = {}
+            for row in net_rows:
+                final_by_strategy[row["strategy"]] = row
+
+            print(f"\n{'전략':<15} {'Gross NAV':>10} {'Net NAV':>10} {'비용 드래그':>12}")
+            print("-" * 50)
+            for strategy in sorted(final_by_strategy.keys()):
+                row = final_by_strategy[strategy]
+                gross = float(row.get("nav", 1.0))
+                net = float(row.get("net_nav", gross))
+                drag = gross - net
+                print(f"{strategy:<15} {gross:>10.4f} {net:>10.4f} {drag:>12.4f}")
         return
 
     # 기본 모드: 단일 top_n 비교
