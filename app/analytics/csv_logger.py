@@ -37,7 +37,7 @@ OHLC_HEADER = ["ticker", "date", "close"]
 STRATEGY_SIGNALS_HEADER = ["date", "strategy", "mode", "selected_assets", "top_score"]
 STRATEGY_NAV_HEADER = ["date", "strategy", "daily_return", "nav"]
 PORTFOLIO_NAV_MODEL_HEADER = ["date", "nav", "daily_return"]
-PORTFOLIO_NAV_ACTUAL_HEADER = ["date", "nav", "daily_return", "total_equity"]
+PORTFOLIO_NAV_ACTUAL_HEADER = ["date", "nav", "daily_return", "total_equity", "fx_rate", "krw_nav"]
 
 
 def _ensure_dir() -> None:
@@ -98,7 +98,12 @@ def _migrate_legacy_portfolio_nav_to_actual_if_needed() -> None:
         migrated_rows = [PORTFOLIO_NAV_ACTUAL_HEADER]
         for row in rows[1:]:
             if len(row) >= 3:
-                migrated_rows.append([row[0], row[1], row[2], ""])
+                migrated_rows.append([row[0], row[1], row[2], "", "", ""])
+    elif header == ["date", "nav", "daily_return", "total_equity"]:
+        migrated_rows = [PORTFOLIO_NAV_ACTUAL_HEADER]
+        for row in rows[1:]:
+            if len(row) >= 4:
+                migrated_rows.append([row[0], row[1], row[2], row[3], "", ""])
     else:
         raise RuntimeError(
             f"알 수 없는 portfolio_nav.csv 헤더 형식: {header}"
@@ -501,6 +506,8 @@ def save_portfolio_nav_actual(
     nav: float,
     daily_return: float,
     total_equity: Optional[float] = None,
+    fx_rate: Optional[float] = None,
+    krw_nav: Optional[float] = None,
 ) -> None:
     """실제 포트폴리오 NAV를 portfolio_nav_actual.csv에 기록한다."""
     _ensure_dir()
@@ -509,10 +516,12 @@ def save_portfolio_nav_actual(
     if date in _existing_dates_in_csv(PORTFOLIO_NAV_ACTUAL_CSV, "date"):
         return
     equity_str = f"{total_equity:.2f}" if total_equity is not None else ""
+    fx_str = f"{fx_rate:.2f}" if fx_rate is not None else ""
+    krw_str = f"{krw_nav:.2f}" if krw_nav is not None else ""
     _append_rows(
         PORTFOLIO_NAV_ACTUAL_CSV,
         PORTFOLIO_NAV_ACTUAL_HEADER,
-        [[date, f"{nav:.6f}", f"{daily_return:.6f}", equity_str]],
+        [[date, f"{nav:.6f}", f"{daily_return:.6f}", equity_str, fx_str, krw_str]],
     )
 
 

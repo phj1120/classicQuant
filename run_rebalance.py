@@ -48,6 +48,7 @@ from app.indicators.momentum import get_momentum_scores
 from app.assets.assets import group_tickers
 from app.execution.portfolio import build_group_orders, execute_orders, get_holdings_all_exchanges, get_prices
 from app.analytics.report import write_report
+from app.data.fred_api import get_usdkrw_rate
 from app.strategy_selector import select_active_strategies
 from app.strategies import get_strategy
 from app.time_utils import trading_date_label
@@ -216,7 +217,9 @@ def _update_portfolio_nav_actual(today: str, total_equity: float, cash: float) -
         portfolio_dr = 0.0
         new_nav = last_nav
 
-    save_portfolio_nav_actual(today, new_nav, portfolio_dr, total_equity)
+    fx_rate = get_usdkrw_rate(today)
+    krw_nav = new_nav * fx_rate if fx_rate is not None else None
+    save_portfolio_nav_actual(today, new_nav, portfolio_dr, total_equity, fx_rate=fx_rate, krw_nav=krw_nav)
     save_portfolio_state(today, total_equity, cash)
 
 
