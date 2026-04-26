@@ -129,6 +129,18 @@ def main() -> None:
     print("\n[Step 2] 전략 NAV 시뮬레이션 (20년 기준)")
     run_all_backtests(strategy_entries, lookback_months=240)
 
+    # 백테스트 완료 후 벤치마크 NAV 생성
+    try:
+        from app.analytics.benchmark import build_benchmark_nav, save_benchmark_nav
+        from app.analytics.csv_logger import load_ohlc_history
+        ohlc = load_ohlc_history()
+        if ohlc:
+            bm_rows = build_benchmark_nav(ohlc)
+            save_benchmark_nav(bm_rows)
+            print(f"벤치마크 NAV 생성 완료: {len(bm_rows)}일")
+    except Exception as e:
+        print(f"벤치마크 NAV 생성 실패 (무시): {e}")
+
     print("\n✅ 백필 완료!")
     print("이제 run_selection_backtest.py --full 로 최적 설정을 찾을 수 있습니다.")
 

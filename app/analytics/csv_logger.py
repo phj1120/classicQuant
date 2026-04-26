@@ -414,6 +414,30 @@ def load_portfolio_snapshots() -> List[Dict]:
     return sorted(raw.values(), key=lambda r: r.get("date", ""))
 
 
+def load_ohlc_history(tickers: Optional[List[str]] = None) -> List[Dict]:
+    """ohlc_history.csv를 행 단위로 로드한다.
+
+    반환: [{"ticker": ..., "date": ..., "close": ...}, ...] (날짜 오름차순)
+    tickers 지정 시 해당 티커만 반환한다.
+    """
+    if not OHLC_CSV.exists():
+        return []
+    ticker_set = set(tickers) if tickers else None
+    rows = []
+    with open(OHLC_CSV, "r", newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            ticker = row.get("ticker", "")
+            if ticker_set and ticker not in ticker_set:
+                continue
+            rows.append({
+                "ticker": ticker,
+                "date": _normalize_date(row.get("date", "")),
+                "close": row.get("close", ""),
+            })
+    return sorted(rows, key=lambda r: r.get("date", ""))
+
+
 def load_ohlc_prices(tickers: Optional[List[str]] = None) -> Dict[str, Dict[str, float]]:
     """ohlc_history.csv에서 가격 데이터를 로드한다.
 

@@ -119,6 +119,56 @@ def write_report(
                 lines.append(f"- {group}: {w * 100:.1f}%")
 
     lines.extend(_build_risk_section(strategy_results))
+    lines.extend(_build_benchmark_section(strategy_results))
 
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
+
+
+def _build_benchmark_section(strategy_results: List[Dict]) -> List[str]:
+    """포트폴리오 NAV 대비 벤치마크 alpha 계산 섹션."""
+    try:
+        from app.analytics.benchmark import load_benchmark_nav
+        from app.analytics.csv_logger import load_portfolio_nav_actual
+
+        bm_rows = load_benchmark_nav()
+        pf_rows = load_portfolio_nav_actual()
+        if not bm_rows or not pf_rows:
+            return []
+
+        # 공통 날짜 최근 252일
+        bm_by_date = {r["date"]: r for r in bm_rows}
+        pf_by_date = {r["date"]: r for r in pf_rows}
+        common = sorted(set(bm_by_date) & set(pf_by_date))
+        if not common:
+            return []
+        recent = common[-252:]
+
+        # NAV 누적 수익률
+        first = recent[0]
+        pf_start = float(pf_by_date[first]["nav"])
+        spy_start = float(bm_by_date[first]["spy_nav"])
+        bal_start = float(bm_by_date[first]["balanced_nav"])
+
+        last = recent[-1]
+        pf_end = float(pf_by_date[last]["nav"])
+        spy_end = float(bm_by_date[last]["spy_nav"])
+        bal_end = float(bm_by_date[last]["balanced_nav"])
+
+        pf_ret = pf_end / pf_start - 1
+        spy_ret = spy_end / spy_start - 1
+        bal_ret = bal_end / bal_start - 1
+
+        spy_alpha = pf_ret - spy_ret
+        bal_alpha = pf_ret - bal_ret
+        days = len(recent)
+
+        return [
+            "",
+            f"## 벤치마크 대비 Alpha (최근 {days}거래일)",
+            f"- 포트폴리오: {pf_ret*100:.2f}%",
+            f"- SPY (100%): {spy_ret*100:.2f}% / Alpha: {spy_alpha*100:+.2f}%",
+            f"- SPY60+AGG40: {bal_ret*100:.2f}% / Alpha: {bal_alpha*100:+.2f}%",
+        ]
+    except Exception:
+        return []
