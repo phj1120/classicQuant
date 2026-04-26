@@ -27,6 +27,11 @@ from app.analytics.csv_logger import (
     save_strategy_signal,
 )
 from app.execution.exchange import set_exchange_default
+from app.execution.order_queue import (
+    enqueue_failed_orders,
+    pop_retryable_orders,
+    write_failed_orders_report,
+)
 from datetime import datetime
 
 try:
@@ -410,7 +415,27 @@ def main() -> None:
         print("\n📋 리포트 전용 모드: 매매 실행 생략")
         execution_summary = {"sells": [], "buys": [], "failed": [], "succeeded": []}
     else:
+        # 이전 실패 주문 재시도
+        retryable, exhausted = pop_retryable_orders()
+        if retryable:
+            print(f"\n🔄 이전 실패 주문 재시도: {len(retryable)}건")
+            retry_orders = [
+                {"ticker": o["ticker"], "side": o["side"], "quantity": o["quantity"],
+                 "est_value": o.get("est_value", 0), "exchange_code": o.get("exchange_code")}
+                for o in retryable
+            ]
+            retry_summary = execute_orders(api, retry_orders, holdings_detail)
+            if retry_summary["failed"]:
+                enqueue_failed_orders(retry_summary["failed"], retry_orders)
+        if exhausted:
+            report_path_failed = write_failed_orders_report(
+                exhausted, Path(__file__).resolve().parent / "reports"
+            )
+            print(f"⚠️  재시도 초과 주문 리포트: {report_path_failed}")
+
         execution_summary = execute_orders(api, all_orders, holdings_detail)
+        if execution_summary["failed"]:
+            enqueue_failed_orders(execution_summary["failed"], all_orders)
         refreshed_holdings = get_holdings_all_exchanges(api)
         refreshed_cash = api.get_account_cash() or 0.0
         refreshed_prices = {t: info.get("price") for t, info in refreshed_holdings.items() if info.get("price")}
