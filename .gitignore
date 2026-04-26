@@ -1,2 +1,6 @@
 key.json
 .idea
+__pycache__/
+*.pyc
+*.pyo
+.claude/worktrees/
