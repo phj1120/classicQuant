@@ -150,19 +150,25 @@ def _run_strategy(strategy_entry, api, prices, today):
     return weighted_targets, scores, targets, strategy
 
 
-def _check_portfolio_mdd(selection_cfg: dict) -> tuple:
-    """portfolio_nav_actual.csv 기반 포트폴리오 MDD 체크.
+def _check_portfolio_mdd(selection_cfg: dict, today: str = "") -> tuple:
+    """portfolio_nav_actual.csv 기반 포트폴리오 MDD 체크 (3-state 머신).
 
     Returns:
-        (triggered: bool, current_dd: float)
+        (triggered: bool, current_dd: float, circuit_state: str)
+        triggered=True이면 defensive 모드로 전환해야 한다.
     """
+    from app.analytics.circuit_breaker import (
+        STATE_DEFENSIVE, STATE_NORMAL, STATE_WARNING,
+        update_circuit_state,
+    )
+
     mdd_limit = selection_cfg.get("portfolio_mdd_limit")
     if mdd_limit is None:
-        return False, 0.0
+        return False, 0.0, STATE_NORMAL
 
     history = load_portfolio_nav_actual()
     if not history:
-        return False, 0.0
+        return False, 0.0, STATE_NORMAL
 
     navs = []
     for row in history:
@@ -172,12 +178,23 @@ def _check_portfolio_mdd(selection_cfg: dict) -> tuple:
             continue
 
     if not navs:
-        return False, 0.0
+        return False, 0.0, STATE_NORMAL
 
     peak = max(navs)
     current_dd = (navs[-1] / peak - 1.0) if peak > 1e-10 else 0.0
-    triggered = current_dd < mdd_limit
-    return triggered, current_dd
+
+    # 3-state 서킷 브레이커: warning = mdd_limit/2, defensive = mdd_limit
+    warning_threshold = mdd_limit / 2.0
+    defensive_threshold = mdd_limit
+    circuit_state = update_circuit_state(
+        current_dd=current_dd,
+        date=today,
+        warning_threshold=warning_threshold,
+        defensive_threshold=defensive_threshold,
+        hysteresis=0.03,
+    )
+    triggered = circuit_state == STATE_DEFENSIVE
+    return triggered, current_dd, circuit_state
 
 
 def _update_portfolio_nav_actual(today: str, total_equity: float, cash: float) -> None:
@@ -284,11 +301,12 @@ def main() -> None:
     print(f"📈 보유 평가액: ${holding_value:.2f}")
     print(f"🧮 총 자산(추정): ${total_equity:.2f}")
 
-    # 포트폴리오 MDD 서킷 브레이커 체크
-    circuit_triggered, portfolio_dd = _check_portfolio_mdd(selection_cfg)
+    # 포트폴리오 MDD 서킷 브레이커 체크 (3-state)
+    circuit_triggered, portfolio_dd, circuit_state = _check_portfolio_mdd(selection_cfg, today)
     mdd_limit = selection_cfg.get("portfolio_mdd_limit")
     if mdd_limit is not None:
-        status = "⛔ 서킷 브레이커 발동" if circuit_triggered else "✅ 정상"
+        state_icons = {"normal": "✅ 정상", "warning": "⚠️ 경고", "defensive": "⛔ 방어 모드"}
+        status = state_icons.get(circuit_state, circuit_state)
         print(f"📉 포트폴리오 낙폭: {portfolio_dd:.1%} (한도: {mdd_limit:.1%}) {status}")
 
     # CSV 로깅: 보유 현황 (assets 캐시 초기화 후 호출)
