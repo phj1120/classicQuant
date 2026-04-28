@@ -918,7 +918,7 @@ def print_corr_sweep(nav_data: Dict, top_n: int, years: int) -> None:
     print(f"\n{'═'*72}")
     print(f"  corr_constrained 파라미터 스윕 | top_n={top_n} | 기간={years}년 | 지표=Sharpe")
     print(f"{'═'*72}")
-    header = f"  {'corr_thr \\ window':<20}" + "".join(f" {'w='+str(w):>{col_w}}" for w in windows)
+    header = f"  {'corr_thr / window':<20}" + "".join(f" {'w='+str(w):>{col_w}}" for w in windows)
     print(header)
     print(f"  {'─'*60}")
 
@@ -1077,13 +1077,40 @@ def main() -> None:
         return
 
     if args.cost_model:
-        from app.analytics.cost_model import compute_net_nav_series, ROUNDTRIP_COST_RATE
+        from app.analytics.cost_model import (
+            compute_kis_net_nav,
+            KIS_COMMISSION_RATE,
+            SPREAD_COST_RATE,
+            FX_SPREAD_RATE,
+            OVERSEAS_CGT_RATE,
+            CGT_EXEMPTION_KRW,
+            DEFAULT_MONTHLY_TURNOVER,
+        )
         from app.analytics.csv_logger import load_strategy_nav
+        from app.config import build_cost_config
 
-        print(f"\n비용 모델 분석 (왕복 비용률: {ROUNDTRIP_COST_RATE*100:.3f}%)")
+        config_path = Path(__file__).resolve().parent / "config.json"
+        raw_config = json.loads(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
+        costs = build_cost_config(raw_config)
+
+        pf_krw = costs["portfolio_value_krw"]
+        apply_fx = costs["apply_fx"]
+        apply_cgt = costs["apply_cgt"]
+        commission = costs["kis_commission_rate"]
+        fx_rate = costs["fx_spread_rate"]
+        cgt_rate = costs["cgt_rate"]
+        exemption = costs["cgt_exemption_krw"]
+
+        print("\n── KIS 해외주식 비용 모델 분석 ─────────────────────────────")
+        print(f"  수수료  : {commission*100:.2f}% (편도) × 2 = {commission*200:.2f}% 왕복")
+        print(f"  스프레드: {SPREAD_COST_RATE*100:.2f}% (편도) × 2 = {SPREAD_COST_RATE*200:.2f}% 왕복")
+        print(f"  환전    : {fx_rate*100:.2f}% ({'적용' if apply_fx else '미적용'})")
+        print(f"  양도세  : {cgt_rate*100:.0f}% (연간 공제 {exemption:,}원, {'적용' if apply_cgt else '미적용'})")
+        print(f"  포트폴리오: {pf_krw:,}원  |  월 회전율 추정: {DEFAULT_MONTHLY_TURNOVER*100:.0f}%")
+
         nav_data_full = load_strategy_nav()
         if not nav_data_full:
-            print("strategy_nav.csv 데이터 없음")
+            print("❌ strategy_nav.csv 데이터 없음")
         else:
             gross_rows = []
             for strategy, rows in nav_data_full.items():
@@ -1095,20 +1122,41 @@ def main() -> None:
                         "daily_return": row.get("daily_return", "0.0"),
                     })
 
-            net_rows = compute_net_nav_series(gross_rows, [])
+            net_rows = compute_kis_net_nav(
+                gross_rows,
+                portfolio_value_krw=pf_krw,
+                apply_fx=apply_fx,
+                apply_cgt=apply_cgt,
+                commission_rate=commission,
+                fx_rate=fx_rate,
+                cgt_rate=cgt_rate,
+                exemption_krw=exemption,
+            )
 
+            # 전략별 마지막 행 집계
             final_by_strategy: Dict[str, Dict] = {}
+            gross_by_strategy: Dict[str, float] = {}
             for row in net_rows:
                 final_by_strategy[row["strategy"]] = row
+            for strategy, rows in nav_data_full.items():
+                if rows:
+                    gross_by_strategy[strategy] = float(rows[-1].get("nav", 1.0))
 
-            print(f"\n{'전략':<15} {'Gross NAV':>10} {'Net NAV':>10} {'비용 드래그':>12}")
-            print("-" * 50)
+            header = f"{'전략':<16} {'Gross':>8} {'Net':>8} {'수수료':>8} {'환전':>6} {'양도세':>8} {'총드래그':>8}"
+            print(f"\n{header}")
+            print("─" * len(header))
             for strategy in sorted(final_by_strategy.keys()):
                 row = final_by_strategy[strategy]
-                gross = float(row.get("nav", 1.0))
-                net = float(row.get("net_nav", gross))
-                drag = gross - net
-                print(f"{strategy:<15} {gross:>10.4f} {net:>10.4f} {drag:>12.4f}")
+                gross = gross_by_strategy.get(strategy, 1.0)
+                net = float(row.get("kis_net_nav_final", row.get("kis_net_nav", gross)))
+                c_comm = float(row.get("cum_cost_commission", 0.0))
+                c_fx   = float(row.get("cum_cost_fx", 0.0))
+                c_cgt  = float(row.get("cum_cost_cgt", 0.0))
+                drag   = gross - net
+                print(
+                    f"{strategy:<16} {gross:>8.3f} {net:>8.3f}"
+                    f" {c_comm:>8.3f} {c_fx:>6.3f} {c_cgt:>8.3f} {drag:>8.3f}"
+                )
         return
 
     # 기본 모드: 단일 top_n 비교

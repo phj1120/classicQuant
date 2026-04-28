@@ -105,6 +105,26 @@ def load_strategy_entries(raw: Dict) -> List[Dict]:
     ]
 
 
+def build_cost_config(raw: Dict) -> Dict:
+    """config.json의 costs 섹션을 로드한다."""
+    from app.analytics.cost_model import (
+        KIS_COMMISSION_RATE,
+        FX_SPREAD_RATE,
+        OVERSEAS_CGT_RATE,
+        CGT_EXEMPTION_KRW,
+    )
+    defaults = {
+        "kis_commission_rate": KIS_COMMISSION_RATE,
+        "fx_spread_rate": FX_SPREAD_RATE,
+        "cgt_rate": OVERSEAS_CGT_RATE,
+        "cgt_exemption_krw": CGT_EXEMPTION_KRW,
+        "portfolio_value_krw": 50_000_000,
+        "apply_fx": True,
+        "apply_cgt": True,
+    }
+    return {**defaults, **raw.get("costs", {})}
+
+
 def load_selection_config(raw: Dict) -> Dict:
     """config.json의 selection 섹션을 로드한다."""
     defaults = {
