@@ -29,5 +29,14 @@
     "rebalance_threshold_pct": 0.07,
     "cash_buffer_pct": 0.03,
     "min_trade_value_usd": 20.0
+  },
+  "costs": {
+    "kis_commission_rate": 0.0025,
+    "fx_spread_rate": 0.005,
+    "cgt_rate": 0.22,
+    "cgt_exemption_krw": 2500000,
+    "portfolio_value_krw": 50000000,
+    "apply_fx": true,
+    "apply_cgt": true
   }
 }
