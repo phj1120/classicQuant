@@ -176,7 +176,7 @@ class KoreaInvestmentAPI:
         }
         return excd_map.get(exchange_code, exchange_code)
 
-    def get_current_price(self, ticker: str) -> Optional[float]:
+    def get_current_price(self, ticker: str, silent: bool = False) -> Optional[float]:
         url = f"{self.base_url}/uapi/overseas-price/v1/quotations/price"
         excd = self._map_price_exchange(self.exchange_code)
 
@@ -196,9 +196,11 @@ class KoreaInvestmentAPI:
             last_price = data.get("output", {}).get("last", "")
             if last_price:
                 return float(last_price)
-            print("❌ 현재가 조회 실패: 'last' 필드가 비어있음")
+            if not silent:
+                print("❌ 현재가 조회 실패: 'last' 필드가 비어있음")
             return None
-        print(f"❌ 현재가 조회 실패: {data.get('msg1', 'Unknown error')}")
+        if not silent:
+            print(f"❌ 현재가 조회 실패: {data.get('msg1', 'Unknown error')}")
         return None
 
     def _submit_order(

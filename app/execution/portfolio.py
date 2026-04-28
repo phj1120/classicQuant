@@ -76,7 +76,16 @@ def get_prices(api: KoreaInvestmentAPI, tickers: List[str]) -> Dict[str, float]:
     prices: Dict[str, float] = {}
     for ticker in tickers:
         set_exchange_for_ticker(api, ticker)
-        price = api.get_current_price(ticker)
+        primary_exchange = api.exchange_code
+        price = api.get_current_price(ticker, silent=True)
+        if price is None:
+            for exc in US_EXCHANGE_CODES:
+                if exc == primary_exchange:
+                    continue
+                api.exchange_code = exc
+                price = api.get_current_price(ticker, silent=True)
+                if price is not None:
+                    break
         if price is None:
             print(f"⚠️  현재가 없음, 스킵: {ticker}")
             continue
