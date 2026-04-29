@@ -1,0 +1,33 @@
+timestamp,event_type,strategy,detail,git_rev,config_hash
+2026-04-29T16:59:52Z,SIGNAL_COLLECT,daa,date=2026-04-29 | mode=offensive | targets=DBC:0.50|QQQ:0.50,5d3c401,857d1f4a
+2026-04-29T16:59:53Z,NAV_UPDATE,daa,date=2026-04-29 | gross_nav=2.500645 | net_nav=2.495244 | daily_return=0.001904,5d3c401,857d1f4a
+2026-04-29T17:00:12Z,SIGNAL_COLLECT,vaa,date=2026-04-29 | mode=offensive | targets=EEM:1.00,5d3c401,857d1f4a
+2026-04-29T17:00:13Z,NAV_UPDATE,vaa,date=2026-04-29 | gross_nav=2.205019 | net_nav=2.200256 | daily_return=-0.000956,5d3c401,857d1f4a
+2026-04-29T17:00:53Z,SIGNAL_COLLECT,paa,date=2026-04-29 | mode=offensive | targets=SHY:0.08|DBC:0.92,5d3c401,857d1f4a
+2026-04-29T17:00:53Z,NAV_UPDATE,paa,date=2026-04-29 | gross_nav=2.094117 | net_nav=2.089593 | daily_return=0.004763,5d3c401,857d1f4a
+2026-04-29T17:01:33Z,SIGNAL_COLLECT,baa_g12,date=2026-04-29 | mode=offensive | targets=DBC:1.00,5d3c401,857d1f4a
+2026-04-29T17:01:33Z,NAV_UPDATE,baa_g12,date=2026-04-29 | gross_nav=2.048378 | net_nav=2.043953 | daily_return=0.004763,5d3c401,857d1f4a
+2026-04-29T17:01:52Z,SIGNAL_COLLECT,baa_g4,date=2026-04-29 | mode=offensive | targets=EEM:1.00,5d3c401,857d1f4a
+2026-04-29T17:01:52Z,NAV_UPDATE,baa_g4,date=2026-04-29 | gross_nav=2.247236 | net_nav=2.242382 | daily_return=-0.000956,5d3c401,857d1f4a
+2026-04-29T17:02:01Z,SIGNAL_COLLECT,gem,date=2026-04-29 | mode=offensive | targets=SPY:1.00,5d3c401,857d1f4a
+2026-04-29T17:02:01Z,NAV_UPDATE,gem,date=2026-04-29 | gross_nav=3.022676 | net_nav=3.016147 | daily_return=-0.000338,5d3c401,857d1f4a
+2026-04-29T17:02:21Z,SIGNAL_COLLECT,haa,date=2026-04-29 | mode=offensive | targets=EEM:1.00,5d3c401,857d1f4a
+2026-04-29T17:02:21Z,NAV_UPDATE,haa,date=2026-04-29 | gross_nav=2.247236 | net_nav=2.242382 | daily_return=-0.000956,5d3c401,857d1f4a
+2026-04-29T17:02:32Z,SIGNAL_COLLECT,permanent,date=2026-04-29 | mode=offensive | targets=SPY:0.25|TLT:0.25|GLD:0.25|BIL:0.25,5d3c401,857d1f4a
+2026-04-29T17:02:33Z,NAV_UPDATE,permanent,date=2026-04-29 | gross_nav=2.546733 | net_nav=2.541232 | daily_return=-0.003554,5d3c401,857d1f4a
+2026-04-29T17:02:47Z,SIGNAL_COLLECT,all_weather,date=2026-04-29 | mode=offensive | targets=SPY:0.30|TLT:0.40|IEF:0.15|GLD:0.07|DBC:0.07,5d3c401,857d1f4a
+2026-04-29T17:02:47Z,NAV_UPDATE,all_weather,date=2026-04-29 | gross_nav=2.295456 | net_nav=2.290498 | daily_return=-0.000805,5d3c401,857d1f4a
+2026-04-29T17:03:01Z,SIGNAL_COLLECT,golden_butterfly,date=2026-04-29 | mode=offensive | targets=SPY:0.20|VBR:0.20|TLT:0.20|SHY:0.20|GLD:0.20,5d3c401,857d1f4a
+2026-04-29T17:03:01Z,NAV_UPDATE,golden_butterfly,date=2026-04-29 | gross_nav=2.793423 | net_nav=2.787389 | daily_return=-0.004333,5d3c401,857d1f4a
+2026-04-29T17:03:17Z,SIGNAL_COLLECT,gtaa,date=2026-04-29 | mode=offensive | targets=SPY:0.20|EFA:0.20|VNQ:0.20|IEF:0.20|DBC:0.20,5d3c401,857d1f4a
+2026-04-29T17:03:17Z,NAV_UPDATE,gtaa,date=2026-04-29 | gross_nav=2.066757 | net_nav=2.062293 | daily_return=0.002390,5d3c401,857d1f4a
+2026-04-29T17:03:34Z,SIGNAL_COLLECT,ivy,date=2026-04-29 | mode=offensive | targets=VTI:0.20|EFA:0.20|VNQ:0.20|IEF:0.20|DBC:0.20,5d3c401,857d1f4a
+2026-04-29T17:03:34Z,NAV_UPDATE,ivy,date=2026-04-29 | gross_nav=2.047553 | net_nav=2.043130 | daily_return=0.002023,5d3c401,857d1f4a
+2026-04-29T17:03:54Z,SIGNAL_COLLECT,faa,date=2026-04-29 | mode=offensive | targets=DBC:0.33|SPY:0.33|SHY:0.33,5d3c401,857d1f4a
+2026-04-29T17:03:54Z,NAV_UPDATE,faa,date=2026-04-29 | gross_nav=1.932062 | net_nav=1.927888 | daily_return=0.008285,5d3c401,857d1f4a
+2026-04-29T17:04:16Z,SIGNAL_COLLECT,eaa,date=2026-04-29 | mode=offensive | targets=DBC:0.45|SPY:0.29|VNQ:0.26,5d3c401,857d1f4a
+2026-04-29T17:04:16Z,NAV_UPDATE,eaa,date=2026-04-29 | gross_nav=1.284728 | net_nav=1.281953 | daily_return=0.009989,5d3c401,857d1f4a
+2026-04-29T17:04:33Z,SIGNAL_COLLECT,laa,date=2026-04-29 | mode=offensive | targets=QQQ:0.25|IWD:0.25|GLD:0.25|IEF:0.25,5d3c401,857d1f4a
+2026-04-29T17:04:33Z,NAV_UPDATE,laa,date=2026-04-29 | gross_nav=3.673644 | net_nav=3.665709 | daily_return=-0.002286,5d3c401,857d1f4a
+2026-04-29T17:10:09Z,ORDER_EXECUTE,portfolio,date=2026-04-29 | ticker=EEM | side=sell | qty=5.0 | price=0.00 | commission=0.0000,5d3c401,857d1f4a
+2026-04-29T17:10:09Z,ORDER_EXECUTE,portfolio,date=2026-04-29 | ticker=DBC | side=buy | qty=10.0 | price=0.00 | commission=0.0000,5d3c401,857d1f4a
