@@ -7,7 +7,7 @@
 2. data/strategy_signals.csv 에 오늘치 신호 기록
 3. data/momentum.csv 에 오늘치 모멘텀 점수 기록
 4. data/ohlc_history.csv 에 오늘 가격 추가
-5. data/strategy_nav.csv 에 오늘치 NAV 추가 (어제 포트폴리오 기준 수익률)
+5. data/strategy_nav.csv 에 오늘치 NAV 추가 (gross + 비용 적용 net)
 
 매매 없음, 보고서 없음.
 GitHub Actions / cron으로 매일 실행.
@@ -31,6 +31,8 @@ from app.analytics.csv_logger import (
 from app.data.kis_api import KoreaInvestmentAPI
 from app.data.data_utils import parse_history
 from app.analytics.returns import compute_weighted_return
+from app.analytics.cost_model import apply_cost, ROUNDTRIP_COST_RATE, DEFAULT_MONTHLY_TURNOVER
+from app.analytics.audit_log import log_nav_update, log_signal_collect
 from app.indicators.momentum import get_momentum_scores
 from app.strategies import get_strategy
 from app.time_utils import trading_date_label
@@ -85,6 +87,26 @@ def _get_prev_nav(strategy_name: str) -> float:
         return 1.0
 
 
+def _get_prev_net_nav(strategy_name: str) -> float:
+    """이전 net NAV 값을 가져온다. 없으면 gross nav와 동일하게 시작."""
+    nav_data = load_strategy_nav(strategy_name)
+    series = nav_data.get(strategy_name, [])
+    if not series:
+        return 1.0
+    last = series[-1]
+    net_nav_str = last.get("net_nav", "")
+    if net_nav_str:
+        try:
+            return float(net_nav_str)
+        except (ValueError, TypeError):
+            pass
+    # net_nav 컬럼 없는 구버전 행이면 gross nav로 폴백
+    try:
+        return float(last["nav"])
+    except (KeyError, ValueError, TypeError):
+        return 1.0
+
+
 def main() -> None:
     base_dir = Path(__file__).resolve().parent
     config_path = base_dir / "config.json"
@@ -134,18 +156,29 @@ def main() -> None:
                 default=None
             )
             save_strategy_signal(today, name, mode, targets, top_score)
+            log_signal_collect(name, today, mode, targets)
 
             print(f"  모드: {mode}")
             print(f"  선택 자산: {', '.join(f'{g}({w:.0%})' for g, w in targets.items())}")
 
-            # NAV 업데이트
+            # NAV 업데이트 (gross)
             price_dict = load_ohlc_prices()
             daily_return = _calc_strategy_daily_return(name, today, price_dict)
             prev_nav = _get_prev_nav(name)
             new_nav = prev_nav * (1.0 + daily_return)
-            save_strategy_nav(today, name, daily_return, new_nav)
 
-            print(f"  일별수익: {daily_return:.4%} | NAV: {new_nav:.4f}")
+            # net NAV: 월말에 DEFAULT_MONTHLY_TURNOVER 기준 거래 비용 차감
+            prev_net_nav = _get_prev_net_nav(name)
+            new_net_nav = prev_net_nav * (1.0 + daily_return)
+            is_month_end = today[8:] in ("28", "29", "30", "31")
+            if is_month_end:
+                new_net_nav = apply_cost(new_net_nav, DEFAULT_MONTHLY_TURNOVER, ROUNDTRIP_COST_RATE)
+            net_daily_return = (new_net_nav / prev_net_nav - 1.0) if prev_net_nav > 1e-10 else daily_return
+
+            save_strategy_nav(today, name, daily_return, new_nav, new_net_nav, net_daily_return)
+            log_nav_update(name, today, new_nav, new_net_nav, daily_return)
+
+            print(f"  일별수익: {daily_return:.4%} | NAV(gross): {new_nav:.4f} | NAV(net): {new_net_nav:.4f}")
 
         except Exception as e:
             print(f"  ❌ {name} 처리 실패: {e}")

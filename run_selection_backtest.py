@@ -604,7 +604,12 @@ def print_walk_forward(
     test_years: int = 1,
     mdd_threshold: Optional[float] = None,
 ) -> str:
-    """롤링 walk-forward 검증 결과를 출력하고 권장 기준을 반환한다."""
+    """롤링 walk-forward 검증 결과를 출력하고 권장 기준을 반환한다.
+
+    각 fold에서 IS(train) 와 OOS(test) Sharpe 를 모두 계산하여
+    과적합 지표인 IS-OOS 격차(gap)를 함께 출력한다.
+    합격 기준: OOS Sharpe >= 0.7 & gap < 0.3
+    """
     all_dates = sorted(set(d for s in nav_data.values() for d, _, _ in s))
     if not all_dates:
         print("❌ walk-forward 대상 데이터 없음")
@@ -625,6 +630,7 @@ def print_walk_forward(
     print(f"{'═'*80}")
 
     fold_results: Dict[str, List[Dict]] = {criterion: [] for criterion in CRITERIA if criterion != "equal_weight"}
+    is_fold_results: Dict[str, List[Dict]] = {criterion: [] for criterion in CRITERIA if criterion != "equal_weight"}
     fold_wins: Dict[str, int] = defaultdict(int)
     fold_count = 0
 
@@ -638,56 +644,80 @@ def print_walk_forward(
         for criterion in CRITERIA:
             if criterion == "equal_weight":
                 continue
-            sim, _, _ = simulate(
-                nav_data,
-                criterion,
-                top_n,
-                years=99,
+
+            # OOS: test 구간
+            oos_sim, _, _ = simulate(
+                nav_data, criterion, top_n, years=99,
                 mdd_threshold=mdd_threshold,
                 history_start_date=train_start,
                 eval_start_date=test_start,
                 end_date=test_end,
             )
-            m = compute_metrics(sim)
-            if not m:
+            oos_m = compute_metrics(oos_sim)
+            if not oos_m:
                 continue
-            fold_results[criterion].append(m)
-            fold_metrics[criterion] = m
+            fold_results[criterion].append(oos_m)
+            fold_metrics[criterion] = oos_m
+
+            # IS: train 구간
+            is_sim, _, _ = simulate(
+                nav_data, criterion, top_n, years=99,
+                mdd_threshold=mdd_threshold,
+                history_start_date=train_start,
+                eval_start_date=train_start,
+                end_date=test_start,
+            )
+            is_m = compute_metrics(is_sim)
+            if is_m:
+                is_fold_results[criterion].append(is_m)
 
         if fold_metrics:
             best_fold = max(fold_metrics.items(), key=lambda item: item[1].get("sharpe", 0))[0]
             fold_wins[best_fold] += 1
             print(
                 f"  fold {fold_count:>2}: {train_start} -> {test_end} | "
-                f"best={best_fold} (Sharpe {fold_metrics[best_fold].get('sharpe', 0):.2f})"
+                f"best={best_fold} (OOS Sharpe {fold_metrics[best_fold].get('sharpe', 0):.2f})"
             )
 
     if not fold_count:
         print("❌ walk-forward fold를 생성하지 못했습니다.")
         return "nav_momentum"
 
-    summary: Dict[str, Dict[str, float]] = {
+    oos_summary: Dict[str, Dict[str, float]] = {
         criterion: _aggregate_metrics(metrics)
         for criterion, metrics in fold_results.items()
         if metrics
     }
-    if not summary:
+    is_summary: Dict[str, Dict[str, float]] = {
+        criterion: _aggregate_metrics(metrics)
+        for criterion, metrics in is_fold_results.items()
+        if metrics
+    }
+    if not oos_summary:
         print("❌ walk-forward 결과가 없습니다.")
         return "nav_momentum"
 
-    ranked = sorted(summary.items(), key=lambda item: item[1].get("sharpe", 0), reverse=True)
+    ranked = sorted(oos_summary.items(), key=lambda item: item[1].get("sharpe", 0), reverse=True)
 
-    print(f"\n  {'기준':<18} {'CAGR':>7} {'Sharpe':>7} {'MDD':>7} {'Calmar':>7}  {'Folds':>5}")
-    print(f"  {'─'*70}")
-    for criterion, m in ranked:
+    print(f"\n  {'기준':<18} {'IS Sharpe':>10} {'OOS Sharpe':>10} {'Gap':>6} {'OOS CAGR':>9} {'OOS MDD':>8}  판정")
+    print(f"  {'─'*80}")
+    for criterion, oos_m in ranked:
+        is_m = is_summary.get(criterion, {})
+        is_sharpe = is_m.get("sharpe", 0.0)
+        oos_sharpe = oos_m.get("sharpe", 0.0)
+        gap = is_sharpe - oos_sharpe
+        pass_oos = oos_sharpe >= 0.7
+        pass_gap = gap < 0.3
+        verdict = "✅ 합격" if (pass_oos and pass_gap) else ("⚠️ 과적합" if not pass_gap else "❌ 수익불충분")
         print(
-            f"  {criterion:<18} {m.get('cagr',0):>6.1%} {m.get('sharpe',0):>7.2f}"
-            f" {m.get('mdd',0):>6.1%} {m.get('calmar',0):>7.2f}  {int(m.get('folds', 0)):>5}"
+            f"  {criterion:<18} {is_sharpe:>10.2f} {oos_sharpe:>10.2f} {gap:>6.2f}"
+            f" {oos_m.get('cagr',0):>8.1%} {oos_m.get('mdd',0):>7.1%}  {verdict}"
         )
 
     best = ranked[0][0]
     print(f"\n  ✅ walk-forward 권장 기준: {best}")
     print(f"  📊 fold 승리 횟수: {dict(sorted(fold_wins.items(), key=lambda x: -x[1]))}")
+    print(f"\n  합격 기준: OOS Sharpe ≥ 0.7 & IS-OOS Gap < 0.3")
     print(f"{'═'*80}\n")
     return best
 
@@ -951,14 +981,17 @@ def print_corr_sweep(nav_data: Dict, top_n: int, years: int) -> None:
 def _generate_portfolio_nav(nav_data: Dict) -> None:
     """현재 config 기준 모델 포트폴리오 NAV를 시뮬레이션 후 저장한다.
 
-    strategy_nav.csv의 전체 기간을 사용하므로 즉시 동작 가능.
+    gross NAV 와 비용 적용 net NAV 를 함께 저장한다.
     """
     import json as _json
+    from app.analytics.cost_model import apply_cost, ROUNDTRIP_COST_RATE, DEFAULT_MONTHLY_TURNOVER
+    from app.config import build_cost_config
 
     config_path = Path(__file__).resolve().parent / "config.json"
     criterion = "sharpe_12m"
     top_n = 3
     mdd_threshold = None
+    costs: Dict = {}
 
     if config_path.exists():
         raw = _json.loads(config_path.read_text(encoding="utf-8"))
@@ -966,8 +999,17 @@ def _generate_portfolio_nav(nav_data: Dict) -> None:
         criterion = sel.get("criteria", criterion)
         top_n = int(sel.get("top_n") or top_n)
         mdd_threshold = sel.get("mdd_filter_threshold")
+        costs = build_cost_config(raw)
+
+    roundtrip_rate = (
+        (costs.get("kis_commission_rate", ROUNDTRIP_COST_RATE / 2)
+         + 0.0002)  # spread
+        * 2.0
+    )
+    monthly_turnover = DEFAULT_MONTHLY_TURNOVER
 
     print(f"포트폴리오 NAV 백필 중: criteria={criterion}, top_n={top_n}, mdd={mdd_threshold}")
+    print(f"  비용 모델: 수수료 왕복 {roundtrip_rate*100:.2f}%, 월 회전율 {monthly_turnover*100:.0f}%")
 
     results, last_sel, _ = simulate(nav_data, criterion, top_n, 99, mdd_threshold)
     if not results:
@@ -977,17 +1019,220 @@ def _generate_portfolio_nav(nav_data: Dict) -> None:
     portfolio_nav_path = DATA_DIR / "portfolio_nav_model.csv"
     with open(portfolio_nav_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["date", "nav", "daily_return"])
+        writer.writerow(["date", "nav", "daily_return", "net_nav", "net_daily_return"])
         prev_nav = results[0][1]
+        prev_net_nav = results[0][1]
         for i, (date, nav) in enumerate(results):
             dr = (nav / prev_nav - 1.0) if i > 0 and prev_nav > 1e-10 else 0.0
-            writer.writerow([date, f"{nav:.6f}", f"{dr:.6f}"])
+            prev_net_nav_val = prev_net_nav
+            net_nav = prev_net_nav * (1.0 + dr)
+            is_month_end = date[8:] in ("28", "29", "30", "31")
+            if is_month_end:
+                net_nav = apply_cost(net_nav, monthly_turnover, roundtrip_rate)
+            net_dr = (net_nav / prev_net_nav_val - 1.0) if i > 0 and prev_net_nav_val > 1e-10 else 0.0
+            writer.writerow([date, f"{nav:.6f}", f"{dr:.6f}", f"{net_nav:.6f}", f"{net_dr:.6f}"])
             prev_nav = nav
+            prev_net_nav = net_nav
 
     m = compute_metrics(results)
+    # net NAV 메트릭 계산
+    net_results = []
+    prev_net = results[0][1]
+    for i, (date, nav) in enumerate(results):
+        dr = (nav / results[i-1][1] - 1.0) if i > 0 else 0.0
+        net_nav = prev_net * (1.0 + dr)
+        if date[8:] in ("28", "29", "30", "31"):
+            net_nav = apply_cost(net_nav, monthly_turnover, roundtrip_rate)
+        net_results.append((date, net_nav))
+        prev_net = net_nav
+    mn = compute_metrics(net_results)
+
     print(f"✅ portfolio_nav_model.csv 저장: {len(results)}행, {results[0][0]} ~ {results[-1][0]}")
-    print(f"   CAGR={m.get('cagr', 0):.1%}  Sharpe={m.get('sharpe', 0):.2f}  MDD={m.get('mdd', 0):.1%}")
+    print(f"   [gross] CAGR={m.get('cagr',0):.1%}  Sharpe={m.get('sharpe',0):.2f}  MDD={m.get('mdd',0):.1%}")
+    print(f"   [net]   CAGR={mn.get('cagr',0):.1%}  Sharpe={mn.get('sharpe',0):.2f}  MDD={mn.get('mdd',0):.1%}")
     print(f"   마지막 선택: {', '.join(last_sel)}")
+
+
+# ── sensitivity ───────────────────────────────────────────────────────────────
+
+def print_sensitivity(nav_data: Dict, years: int) -> None:
+    """핵심 파라미터 ±50% 범위 민감도 분석.
+
+    각 파라미터를 개별적으로 변화시킬 때 OOS Sharpe 변동이 0.3 미만이면 '안정'으로 판정한다.
+    """
+    import json as _json
+    config_path = Path(__file__).resolve().parent / "config.json"
+    base_criterion = "corr_constrained"
+    base_top_n = 2
+    base_mdd = -0.15
+
+    if config_path.exists():
+        raw = _json.loads(config_path.read_text(encoding="utf-8"))
+        sel = raw.get("selection", {})
+        base_criterion = sel.get("criteria", base_criterion)
+        base_top_n = int(sel.get("top_n") or base_top_n)
+        base_mdd = sel.get("mdd_filter_threshold", base_mdd)
+
+    def _sharpe(criterion, top_n, mdd) -> float:
+        sim, _, _ = simulate(nav_data, criterion, top_n, years, mdd)
+        m = compute_metrics(sim)
+        return m.get("sharpe", 0.0) if m else 0.0
+
+    base_sharpe = _sharpe(base_criterion, base_top_n, base_mdd)
+
+    print(f"\n{'═'*72}")
+    print(f"  파라미터 민감도 분석 | 기준: {base_criterion}, top_n={base_top_n}, mdd={base_mdd}")
+    print(f"  기준 Sharpe (in-sample, {years}년): {base_sharpe:.2f}")
+    print(f"{'═'*72}")
+
+    # top_n 스윕
+    print(f"\n  [top_n 스윕]")
+    print(f"  {'top_n':>6}  {'Sharpe':>7}  {'vs base':>8}  판정")
+    print(f"  {'─'*40}")
+    for n in range(1, 7):
+        s = _sharpe(base_criterion, n, base_mdd)
+        delta = s - base_sharpe
+        verdict = "✅" if abs(delta) < 0.3 else "⚠️ 불안정"
+        marker = " ◀ 현재" if n == base_top_n else ""
+        print(f"  {n:>6}  {s:>7.2f}  {delta:>+8.2f}  {verdict}{marker}")
+
+    # mdd_filter_threshold 스윕
+    print(f"\n  [mdd_filter_threshold 스윕]")
+    print(f"  {'threshold':>10}  {'Sharpe':>7}  {'vs base':>8}  판정")
+    print(f"  {'─'*44}")
+    for mdd_val in [-0.05, -0.10, -0.12, -0.15, -0.18, -0.20, -0.25, -0.30, None]:
+        s = _sharpe(base_criterion, base_top_n, mdd_val)
+        delta = s - base_sharpe
+        verdict = "✅" if abs(delta) < 0.3 else "⚠️ 불안정"
+        label = f"{mdd_val:.0%}" if mdd_val is not None else "없음"
+        marker = " ◀ 현재" if mdd_val == base_mdd else ""
+        print(f"  {label:>10}  {s:>7.2f}  {delta:>+8.2f}  {verdict}{marker}")
+
+    # criteria 비교
+    print(f"\n  [criteria 비교]")
+    print(f"  {'criteria':<20}  {'Sharpe':>7}  {'vs base':>8}  판정")
+    print(f"  {'─'*50}")
+    for crit in CRITERIA:
+        s = _sharpe(crit, base_top_n, base_mdd)
+        delta = s - base_sharpe
+        verdict = "✅" if abs(delta) < 0.3 else "⚠️ 민감"
+        marker = " ◀ 현재" if crit == base_criterion else ""
+        print(f"  {crit:<20}  {s:>7.2f}  {delta:>+8.2f}  {verdict}{marker}")
+
+    sharpe_vals = [_sharpe(base_criterion, n, base_mdd) for n in range(1, 7)]
+    max_gap = max(sharpe_vals) - min(sharpe_vals)
+    print(f"\n  top_n 1~6 Sharpe 범위: {min(sharpe_vals):.2f} ~ {max(sharpe_vals):.2f}  (max gap={max_gap:.2f})")
+    verdict_overall = "✅ 안정" if max_gap < 0.3 else "⚠️ 파라미터 의존"
+    print(f"  종합 판정: {verdict_overall}")
+    print(f"{'═'*72}\n")
+
+
+# ── bootstrap / DSR ───────────────────────────────────────────────────────────
+
+def print_bootstrap(nav_data: Dict, years: int, n_boot: int = 10_000) -> None:
+    """Bootstrap Sharpe 신뢰구간 및 Deflated Sharpe Ratio(DSR) 산출.
+
+    DSR은 다중 비교(전략 수 = M)를 보정한 Sharpe 유의성 검정이다.
+    PSR >= 0.95, DSR >= 0.95 이면 합격.
+    """
+    import math
+    import random
+    import json as _json
+
+    config_path = Path(__file__).resolve().parent / "config.json"
+    base_criterion = "corr_constrained"
+    base_top_n = 2
+    base_mdd = -0.15
+
+    if config_path.exists():
+        raw = _json.loads(config_path.read_text(encoding="utf-8"))
+        sel = raw.get("selection", {})
+        base_criterion = sel.get("criteria", base_criterion)
+        base_top_n = int(sel.get("top_n") or base_top_n)
+        base_mdd = sel.get("mdd_filter_threshold", base_mdd)
+
+    sim, _, _ = simulate(nav_data, base_criterion, base_top_n, years, base_mdd)
+    if not sim or len(sim) < 30:
+        print("❌ 시뮬레이션 데이터 부족")
+        return
+
+    daily_rets = []
+    for i in range(1, len(sim)):
+        prev = sim[i-1][1]
+        cur = sim[i][1]
+        if prev > 1e-10:
+            daily_rets.append(cur / prev - 1.0)
+
+    n = len(daily_rets)
+    mean_r = sum(daily_rets) / n
+    var_r = sum((r - mean_r) ** 2 for r in daily_rets) / n
+    std_r = math.sqrt(var_r) if var_r > 0 else 1e-10
+    observed_sharpe = (mean_r / std_r) * math.sqrt(252)
+
+    # skewness, excess kurtosis
+    skew = sum((r - mean_r) ** 3 for r in daily_rets) / (n * std_r ** 3) if std_r > 0 else 0.0
+    kurt = sum((r - mean_r) ** 4 for r in daily_rets) / (n * std_r ** 4) - 3.0 if std_r > 0 else 0.0
+
+    # Bootstrap Sharpe 분포
+    random.seed(42)
+    boot_sharpes = []
+    for _ in range(n_boot):
+        sample = [random.choice(daily_rets) for _ in range(n)]
+        s_mean = sum(sample) / n
+        s_var = sum((r - s_mean) ** 2 for r in sample) / n
+        s_std = math.sqrt(s_var) if s_var > 0 else 1e-10
+        boot_sharpes.append((s_mean / s_std) * math.sqrt(252))
+
+    boot_sharpes.sort()
+    ci_lo = boot_sharpes[int(0.025 * n_boot)]
+    ci_hi = boot_sharpes[int(0.975 * n_boot)]
+    pct_positive = sum(1 for s in boot_sharpes if s > 0) / n_boot
+
+    # PSR: Prob(observed Sharpe > 0 | 정규 근사, 비정규 보정)
+    # Bailey & Lopez de Prado (2012) 공식
+    sr_annual = observed_sharpe
+    sr_daily = mean_r / std_r
+    # 샘플 수 보정 PSR
+    numerator = sr_daily * math.sqrt(n - 1)
+    denominator = math.sqrt(1 - skew * sr_daily + (kurt / 4) * sr_daily ** 2)
+    z_psr = numerator / denominator if denominator > 0 else 0.0
+    psr = _norm_cdf(z_psr)
+
+    # DSR: M개 전략 시도 보정 (Bonferroni-style)
+    # DSR = PSR( SR_benchmark ) where benchmark = E[max of M iid SRs]
+    M = len(nav_data)  # 시도한 전략 수
+    # E[max of M iid standard normals] ≈ (1 - gamma) * Z(1 - 1/M) + gamma * Z(1 - 1/(M*e))
+    # 간소화: Z_bench = sqrt(2 * log(M)) - (log(log(M)) + log(4*pi)) / (2*sqrt(2*log(M)))
+    if M > 1:
+        log_m = math.log(M)
+        z_bench = math.sqrt(2 * log_m) - (math.log(math.log(M) + 1) + math.log(4 * math.pi)) / (2 * math.sqrt(2 * log_m))
+        sr_bench_daily = z_bench / math.sqrt(n - 1)
+        numerator_dsr = (sr_daily - sr_bench_daily) * math.sqrt(n - 1)
+        dsr = _norm_cdf(numerator_dsr / denominator) if denominator > 0 else 0.0
+    else:
+        dsr = psr
+
+    print(f"\n{'═'*72}")
+    print(f"  Bootstrap 통계 | 기준: {base_criterion}, top_n={base_top_n}, mdd={base_mdd}")
+    print(f"  샘플: {n}거래일 ({n/252:.1f}년) | 부트스트랩: {n_boot:,}회")
+    print(f"{'═'*72}")
+    print(f"  관찰 Sharpe:   {observed_sharpe:.4f}")
+    print(f"  95% CI:        [{ci_lo:.4f}, {ci_hi:.4f}]")
+    print(f"  부트스트랩 >0: {pct_positive*100:.1f}%")
+    print(f"  왜도(skew):    {skew:.4f}  |  초과첨도(kurt): {kurt:.4f}")
+    print()
+    print(f"  PSR (비정규 보정):        {psr:.4f}  {'✅ 합격' if psr >= 0.95 else '❌ 불합격'} (기준 ≥ 0.95)")
+    print(f"  DSR (다중비교 보정, M={M}): {dsr:.4f}  {'✅ 합격' if dsr >= 0.95 else '❌ 불합격'} (기준 ≥ 0.95)")
+    print()
+    verdict = "✅ 통계적으로 유의" if (psr >= 0.95 and dsr >= 0.95) else "⚠️ 추가 검증 필요"
+    print(f"  종합: {verdict}")
+    print(f"{'═'*72}\n")
+
+
+def _norm_cdf(x: float) -> float:
+    """표준정규분포 CDF (수치 근사, math.erf 사용)."""
+    import math
+    return (1.0 + math.erf(x / math.sqrt(2.0))) / 2.0
 
 
 def main() -> None:
@@ -1016,6 +1261,12 @@ def main() -> None:
                         help="corr_threshold × corr_window 조합별 Sharpe 히트맵 (corr_constrained)")
     parser.add_argument("--cost-model", action="store_true",
                         help="비용 모델 적용 gross vs net NAV 비교")
+    parser.add_argument("--sensitivity", action="store_true",
+                        help="핵심 파라미터(top_n, mdd_threshold, criteria) 민감도 분석")
+    parser.add_argument("--bootstrap", action="store_true",
+                        help="Bootstrap Sharpe 신뢰구간 및 Deflated Sharpe Ratio(DSR) 산출")
+    parser.add_argument("--n-boot", type=int, default=10_000,
+                        help="Bootstrap 반복 횟수 (기본 10000)")
     args = parser.parse_args()
 
     nav_data = load_nav_data()
@@ -1074,6 +1325,14 @@ def main() -> None:
 
     if args.corr_sweep:
         print_corr_sweep(nav_data, args.top_n, args.years)
+        return
+
+    if args.sensitivity:
+        print_sensitivity(nav_data, args.years)
+        return
+
+    if args.bootstrap:
+        print_bootstrap(nav_data, args.years, n_boot=args.n_boot)
         return
 
     if args.cost_model:
