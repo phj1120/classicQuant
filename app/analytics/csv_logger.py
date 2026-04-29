@@ -35,8 +35,8 @@ PORTFOLIO_HEADER = ["date", "total_equity", "cash", "strategy", "group", "target
 PORTFOLIO_STATE_HEADER = ["date", "total_equity", "cash"]
 OHLC_HEADER = ["ticker", "date", "close"]
 STRATEGY_SIGNALS_HEADER = ["date", "strategy", "mode", "selected_assets", "top_score"]
-STRATEGY_NAV_HEADER = ["date", "strategy", "daily_return", "nav"]
-PORTFOLIO_NAV_MODEL_HEADER = ["date", "nav", "daily_return"]
+STRATEGY_NAV_HEADER = ["date", "strategy", "daily_return", "nav", "net_nav", "net_daily_return"]
+PORTFOLIO_NAV_MODEL_HEADER = ["date", "nav", "daily_return", "net_nav", "net_daily_return"]
 PORTFOLIO_NAV_ACTUAL_HEADER = ["date", "nav", "daily_return", "total_equity", "fx_rate", "krw_nav"]
 
 
@@ -355,15 +355,23 @@ def save_strategy_nav(
     strategy_name: str,
     daily_return: float,
     nav: float,
+    net_nav: Optional[float] = None,
+    net_daily_return: Optional[float] = None,
 ) -> None:
-    """전략 NAV를 strategy_nav.csv에 기록한다 (중복 날짜 스킵)."""
+    """전략 NAV를 strategy_nav.csv에 기록한다 (중복 날짜 스킵).
+
+    net_nav: 거래 비용 적용 후 NAV (없으면 빈 문자열로 저장)
+    net_daily_return: 비용 적용 후 일별 수익률
+    """
     _ensure_dir()
     date = _normalize_date(date)
 
     if date in _existing_dates_in_csv(STRATEGY_NAV_CSV, "date", "strategy", strategy_name):
         return
 
-    row = [date, strategy_name, f"{daily_return:.6f}", f"{nav:.6f}"]
+    net_nav_str = f"{net_nav:.6f}" if net_nav is not None else ""
+    net_dr_str = f"{net_daily_return:.6f}" if net_daily_return is not None else ""
+    row = [date, strategy_name, f"{daily_return:.6f}", f"{nav:.6f}", net_nav_str, net_dr_str]
     _append_rows(STRATEGY_NAV_CSV, STRATEGY_NAV_HEADER, [row])
 
 
@@ -499,16 +507,20 @@ def save_portfolio_nav_model(
     date: str,
     nav: float,
     daily_return: float,
+    net_nav: Optional[float] = None,
+    net_daily_return: Optional[float] = None,
 ) -> None:
     """모델 포트폴리오 NAV를 portfolio_nav_model.csv에 기록한다."""
     _ensure_dir()
     date = _normalize_date(date)
     if date in _existing_dates_in_csv(PORTFOLIO_NAV_MODEL_CSV, "date"):
         return
+    net_nav_str = f"{net_nav:.6f}" if net_nav is not None else ""
+    net_dr_str = f"{net_daily_return:.6f}" if net_daily_return is not None else ""
     _append_rows(
         PORTFOLIO_NAV_MODEL_CSV,
         PORTFOLIO_NAV_MODEL_HEADER,
-        [[date, f"{nav:.6f}", f"{daily_return:.6f}"]],
+        [[date, f"{nav:.6f}", f"{daily_return:.6f}", net_nav_str, net_dr_str]],
     )
 
 

@@ -53,6 +53,7 @@ from app.indicators.momentum import get_momentum_scores
 from app.assets.assets import group_tickers
 from app.execution.portfolio import build_group_orders, execute_orders, get_holdings_all_exchanges, get_prices
 from app.analytics.report import write_report
+from app.analytics.audit_log import log_circuit_breaker, log_order_execute, log_rebalance_skip
 from app.data.fred_api import get_usdkrw_rate
 from app.strategy_selector import select_active_strategies
 from app.strategies import get_strategy
@@ -360,6 +361,8 @@ def main() -> None:
                 f"config의 fallback_strategy가 strategies 목록에 포함되어 있는지 확인하세요."
             )
         print(f"\n⛔ 포트폴리오 MDD 서킷 브레이커 → {fallback_name} 단독 운용")
+        mdd_limit = selection_cfg.get("portfolio_mdd_limit", -0.18)
+        log_circuit_breaker(today, circuit_state, portfolio_dd, mdd_limit, fallback_name)
         active_entries = [{"name": fallback_name, "weight": 1.0}]
 
     # Phase 3: active 전략만 포트폴리오 합산
@@ -431,6 +434,7 @@ def main() -> None:
     # 주문 실행
     if args.report_only:
         print("\n📋 리포트 전용 모드: 매매 실행 생략")
+        log_rebalance_skip("portfolio", today, "report_only mode")
         execution_summary = {"sells": [], "buys": [], "failed": [], "succeeded": []}
     else:
         # 이전 실패 주문 재시도
@@ -452,6 +456,15 @@ def main() -> None:
             print(f"⚠️  재시도 초과 주문 리포트: {report_path_failed}")
 
         execution_summary = execute_orders(api, all_orders, holdings_detail)
+        for order in execution_summary.get("succeeded", []):
+            log_order_execute(
+                strategy="portfolio",
+                date=today,
+                ticker=order.get("ticker", ""),
+                side=order.get("side", ""),
+                qty=float(order.get("quantity", 0)),
+                price=float(order.get("price", 0)),
+            )
         if execution_summary["failed"]:
             enqueue_failed_orders(execution_summary["failed"], all_orders)
         refreshed_holdings = get_holdings_all_exchanges(api)
