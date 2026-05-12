@@ -1,1 +1,13 @@
-[]
+[
+  {
+    "ticker": "SHY",
+    "side": "buy",
+    "quantity": 7,
+    "est_value": 575.085,
+    "exchange_code": "NASD",
+    "retry_count": 1,
+    "first_failed": "2026-05-12",
+    "last_failed": "2026-05-12",
+    "last_message": "주문가능금액을 초과 했습니다"
+  }
+]
