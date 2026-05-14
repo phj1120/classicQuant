@@ -181,3 +181,7 @@ date,total_equity,cash,strategy,group,target_weight,selected_ticker
 2026-05-13,1321.81,1134.69,laa,IWD,0.1250,
 2026-05-13,1321.81,1134.69,laa,QQQ,0.1250,
 2026-05-13,1321.81,1134.69,daa,SHY,0.5000,SHY
+2026-05-14,1324.52,562.07,permanent,BIL,0.2500,BIL
+2026-05-14,1324.52,562.07,permanent,GLD,0.2500,GLDM
+2026-05-14,1324.52,562.07,permanent,SPY,0.2500,
+2026-05-14,1324.52,562.07,permanent,TLT,0.2500,TLT
