@@ -1,13 +1,13 @@
 [
   {
-    "ticker": "SHY",
+    "ticker": "BIL",
     "side": "buy",
-    "quantity": 7,
-    "est_value": 575.2950000000001,
-    "exchange_code": "NASD",
+    "quantity": 3,
+    "est_value": 274.605,
+    "exchange_code": "AMEX",
     "retry_count": 1,
-    "first_failed": "2026-05-14",
-    "last_failed": "2026-05-14",
+    "first_failed": "2026-05-15",
+    "last_failed": "2026-05-15",
     "last_message": "주문가능금액을 초과 했습니다"
   }
 ]
