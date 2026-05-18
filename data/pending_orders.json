@@ -6,8 +6,8 @@
     "est_value": 274.605,
     "exchange_code": "AMEX",
     "retry_count": 1,
-    "first_failed": "2026-05-15",
-    "last_failed": "2026-05-15",
+    "first_failed": "2026-05-18",
+    "last_failed": "2026-05-18",
     "last_message": "주문가능금액을 초과 했습니다"
   }
 ]
