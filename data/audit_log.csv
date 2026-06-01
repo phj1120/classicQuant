@@ -728,3 +728,39 @@ timestamp,event_type,strategy,detail,git_rev,config_hash
 2026-05-29T18:21:56Z,NAV_UPDATE,laa,date=2026-05-29 | gross_nav=3.810201 | net_nav=3.801971 | daily_return=0.002640,fc28b85,857d1f4a
 2026-05-29T18:26:22Z,CIRCUIT_BREAKER,portfolio,date=2026-05-29 | state=defensive | current_dd=-0.2642 | threshold=-0.1800 | fallback=permanent,fc28b85,857d1f4a
 2026-05-29T18:26:24Z,ORDER_EXECUTE,portfolio,date=2026-05-29 | ticker=TLT | side=buy | qty=3.0 | price=0.00 | commission=0.0000,fc28b85,857d1f4a
+2026-06-01T20:00:19Z,SIGNAL_COLLECT,daa,date=2026-06-01 | mode=offensive | targets=QQQ:0.50|EEM:0.50,43f54e1,857d1f4a
+2026-06-01T20:00:19Z,NAV_UPDATE,daa,date=2026-06-01 | gross_nav=2.625094 | net_nav=2.625094 | daily_return=0.014954,43f54e1,857d1f4a
+2026-06-01T20:00:39Z,SIGNAL_COLLECT,vaa,date=2026-06-01 | mode=offensive | targets=EEM:1.00,43f54e1,857d1f4a
+2026-06-01T20:00:39Z,NAV_UPDATE,vaa,date=2026-06-01 | gross_nav=2.294322 | net_nav=2.294322 | daily_return=0.022021,43f54e1,857d1f4a
+2026-06-01T20:01:19Z,SIGNAL_COLLECT,paa,date=2026-06-01 | mode=offensive | targets=SHY:0.17|QQQ:0.83,43f54e1,857d1f4a
+2026-06-01T20:01:20Z,NAV_UPDATE,paa,date=2026-06-01 | gross_nav=2.117173 | net_nav=2.117173 | daily_return=0.006936,43f54e1,857d1f4a
+2026-06-01T20:01:58Z,SIGNAL_COLLECT,baa_g12,date=2026-06-01 | mode=offensive | targets=QQQ:1.00,43f54e1,857d1f4a
+2026-06-01T20:01:58Z,NAV_UPDATE,baa_g12,date=2026-06-01 | gross_nav=2.057954 | net_nav=2.057954 | daily_return=0.007886,43f54e1,857d1f4a
+2026-06-01T20:02:18Z,SIGNAL_COLLECT,baa_g4,date=2026-06-01 | mode=offensive | targets=EEM:1.00,43f54e1,857d1f4a
+2026-06-01T20:02:18Z,NAV_UPDATE,baa_g4,date=2026-06-01 | gross_nav=2.437685 | net_nav=2.437685 | daily_return=0.022021,43f54e1,857d1f4a
+2026-06-01T20:02:26Z,SIGNAL_COLLECT,gem,date=2026-06-01 | mode=offensive | targets=SPY:1.00,43f54e1,857d1f4a
+2026-06-01T20:02:27Z,NAV_UPDATE,gem,date=2026-06-01 | gross_nav=3.222806 | net_nav=3.222806 | daily_return=0.003825,43f54e1,857d1f4a
+2026-06-01T20:02:46Z,SIGNAL_COLLECT,haa,date=2026-06-01 | mode=offensive | targets=EEM:1.00,43f54e1,857d1f4a
+2026-06-01T20:02:46Z,NAV_UPDATE,haa,date=2026-06-01 | gross_nav=2.437685 | net_nav=2.437685 | daily_return=0.022021,43f54e1,857d1f4a
+2026-06-01T20:02:58Z,SIGNAL_COLLECT,permanent,date=2026-06-01 | mode=offensive | targets=SPY:0.25|TLT:0.25|GLD:0.25|BIL:0.25,43f54e1,857d1f4a
+2026-06-01T20:02:58Z,NAV_UPDATE,permanent,date=2026-06-01 | gross_nav=2.574181 | net_nav=2.574181 | daily_return=-0.004715,43f54e1,857d1f4a
+2026-06-01T20:03:12Z,SIGNAL_COLLECT,all_weather,date=2026-06-01 | mode=offensive | targets=SPY:0.30|TLT:0.40|IEF:0.15|GLD:0.07|DBC:0.07,43f54e1,857d1f4a
+2026-06-01T20:03:12Z,NAV_UPDATE,all_weather,date=2026-06-01 | gross_nav=2.321301 | net_nav=2.321301 | daily_return=-0.000573,43f54e1,857d1f4a
+2026-06-01T20:03:26Z,SIGNAL_COLLECT,golden_butterfly,date=2026-06-01 | mode=offensive | targets=SPY:0.20|VBR:0.20|TLT:0.20|SHY:0.20|GLD:0.20,43f54e1,857d1f4a
+2026-06-01T20:03:27Z,NAV_UPDATE,golden_butterfly,date=2026-06-01 | gross_nav=2.821480 | net_nav=2.821480 | daily_return=-0.005247,43f54e1,857d1f4a
+2026-06-01T20:03:43Z,SIGNAL_COLLECT,gtaa,date=2026-06-01 | mode=offensive | targets=SPY:0.25|EFA:0.25|VNQ:0.25|DBC:0.25,43f54e1,857d1f4a
+2026-06-01T20:03:43Z,NAV_UPDATE,gtaa,date=2026-06-01 | gross_nav=2.092528 | net_nav=2.092528 | daily_return=0.000694,43f54e1,857d1f4a
+2026-06-01T20:04:00Z,SIGNAL_COLLECT,ivy,date=2026-06-01 | mode=offensive | targets=VTI:0.25|EFA:0.25|VNQ:0.25|DBC:0.25,43f54e1,857d1f4a
+2026-06-01T20:04:00Z,NAV_UPDATE,ivy,date=2026-06-01 | gross_nav=2.072793 | net_nav=2.072793 | daily_return=0.000631,43f54e1,857d1f4a
+2026-06-01T20:04:21Z,SIGNAL_COLLECT,faa,date=2026-06-01 | mode=offensive | targets=SPY:0.33|DBC:0.33|SHY:0.33,43f54e1,857d1f4a
+2026-06-01T20:04:21Z,NAV_UPDATE,faa,date=2026-06-01 | gross_nav=1.979112 | net_nav=1.979112 | daily_return=0.015648,43f54e1,857d1f4a
+2026-06-01T20:04:43Z,SIGNAL_COLLECT,eaa,date=2026-06-01 | mode=offensive | targets=SPY:0.37|DBC:0.32|EEM:0.31,43f54e1,857d1f4a
+2026-06-01T20:04:44Z,NAV_UPDATE,eaa,date=2026-06-01 | gross_nav=1.308788 | net_nav=1.308788 | daily_return=0.014230,43f54e1,857d1f4a
+2026-06-01T20:05:01Z,SIGNAL_COLLECT,laa,date=2026-06-01 | mode=offensive | targets=QQQ:0.25|IWD:0.25|GLD:0.25|IEF:0.25,43f54e1,857d1f4a
+2026-06-01T20:05:01Z,NAV_UPDATE,laa,date=2026-06-01 | gross_nav=3.795082 | net_nav=3.795082 | daily_return=-0.003968,43f54e1,857d1f4a
+2026-06-01T20:10:46Z,ORDER_EXECUTE,portfolio,date=2026-06-01 | ticker=BIL | side=sell | qty=3.0 | price=0.00 | commission=0.0000,43f54e1,857d1f4a
+2026-06-01T20:10:46Z,ORDER_EXECUTE,portfolio,date=2026-06-01 | ticker=GLDM | side=sell | qty=2.0 | price=0.00 | commission=0.0000,43f54e1,857d1f4a
+2026-06-01T20:10:46Z,ORDER_EXECUTE,portfolio,date=2026-06-01 | ticker=TLT | side=sell | qty=6.0 | price=0.00 | commission=0.0000,43f54e1,857d1f4a
+2026-06-01T20:10:46Z,ORDER_EXECUTE,portfolio,date=2026-06-01 | ticker=EEM | side=buy | qty=4.0 | price=0.00 | commission=0.0000,43f54e1,857d1f4a
+2026-06-01T20:10:46Z,ORDER_EXECUTE,portfolio,date=2026-06-01 | ticker=IEF | side=buy | qty=1.0 | price=0.00 | commission=0.0000,43f54e1,857d1f4a
+2026-06-01T20:10:46Z,ORDER_EXECUTE,portfolio,date=2026-06-01 | ticker=QQQM | side=buy | qty=1.0 | price=0.00 | commission=0.0000,43f54e1,857d1f4a
