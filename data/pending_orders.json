@@ -1,1 +1,13 @@
-[]
+[
+  {
+    "ticker": "TLT",
+    "side": "buy",
+    "quantity": 3,
+    "est_value": 254.8203,
+    "exchange_code": "NASD",
+    "retry_count": 1,
+    "first_failed": "2026-06-08",
+    "last_failed": "2026-06-08",
+    "last_message": "주문가능금액을 초과 했습니다"
+  }
+]
