@@ -359,3 +359,7 @@ date,total_equity,cash,strategy,group,target_weight,selected_ticker
 2026-07-07,1251.07,476.32,gtaa,EFA,0.1250,EFA
 2026-07-07,1251.07,476.32,gtaa,SPY,0.1250,
 2026-07-07,1251.07,476.32,gtaa,VNQ,0.1250,VNQ
+2026-07-08,1246.84,733.72,permanent,BIL,0.2500,BIL
+2026-07-08,1246.84,733.72,permanent,GLD,0.2500,GLDM
+2026-07-08,1246.84,733.72,permanent,SPY,0.2500,
+2026-07-08,1246.84,733.72,permanent,TLT,0.2500,TLT

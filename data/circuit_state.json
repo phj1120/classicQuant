@@ -1,7 +1,7 @@
 {
-  "state": "warning",
-  "current_dd": -0.110304,
-  "date": "2026-07-07",
+  "state": "defensive",
+  "current_dd": -0.257135,
+  "date": "2026-07-08",
   "warning_threshold": -0.09,
   "defensive_threshold": -0.18,
   "hysteresis": 0.03
