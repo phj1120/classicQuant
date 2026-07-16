@@ -387,3 +387,7 @@ date,total_equity,cash,strategy,group,target_weight,selected_ticker
 2026-07-15,1245.59,581.70,permanent,GLD,0.2500,GLDM
 2026-07-15,1245.59,581.70,permanent,SPY,0.2500,
 2026-07-15,1245.59,581.70,permanent,TLT,0.2500,TLT
+2026-07-16,1242.24,478.51,permanent,BIL,0.2500,
+2026-07-16,1242.24,478.51,permanent,GLD,0.2500,
+2026-07-16,1242.24,478.51,permanent,SPY,0.2500,
+2026-07-16,1242.24,478.51,permanent,TLT,0.2500,
