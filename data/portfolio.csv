@@ -400,3 +400,7 @@ date,total_equity,cash,strategy,group,target_weight,selected_ticker
 2026-07-17,1245.23,478.51,ivy,EFA,0.1250,EFA
 2026-07-17,1245.23,478.51,ivy,VNQ,0.1250,VNQ
 2026-07-17,1245.23,478.51,ivy,VTI,0.1250,SCHB
+2026-07-20,1241.87,396.10,permanent,BIL,0.2500,BIL
+2026-07-20,1241.87,396.10,permanent,GLD,0.2500,GLDM
+2026-07-20,1241.87,396.10,permanent,SPY,0.2500,
+2026-07-20,1241.87,396.10,permanent,TLT,0.2500,
