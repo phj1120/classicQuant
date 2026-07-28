@@ -145,5 +145,6 @@ def load_selection_config(raw: Dict) -> Dict:
         "corr_window": 63,
         "circuit_hysteresis": 0.05,
         "circuit_min_hold_days": 5,
+        "rebalance_frequency": "daily",
     }
     return {**defaults, **raw.get("selection", {})}

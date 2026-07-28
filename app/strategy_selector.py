@@ -160,6 +160,39 @@ def _effective_mdd_threshold(
     return mdd_threshold
 
 
+def is_strategy_mdd_excluded(
+    name: str,
+    mdd_threshold: Optional[float],
+    mdd_threshold_ratio: Optional[float],
+    rolling_peak_window: int = 252,
+) -> bool:
+    """월간 선택 유지 기간 중 특정 전략이 MDD 필터 탈락 조건에 걸렸는지 확인한다.
+
+    월 1회만 재선택하는 경우에도, 보유 중인 전략이 월중 급락해 MDD 필터
+    임계값을 넘으면 다음 정기 재선택까지 기다리지 않고 즉시 재선택을
+    트리거하는 데 쓴다 (_select_by_nav_score의 필터 조건과 동일한 기준).
+    """
+    from app.analytics.csv_logger import load_strategy_nav
+
+    nav_data = load_strategy_nav(name)
+    series = nav_data.get(name, [])
+    prices = []
+    for row in series:
+        try:
+            prices.append(float(row["nav"]))
+        except (KeyError, ValueError, TypeError):
+            continue
+    if not prices:
+        return False
+
+    effective_threshold = _effective_mdd_threshold(prices, mdd_threshold, mdd_threshold_ratio)
+    if effective_threshold is None:
+        return False
+
+    drawdown = _rolling_drawdown(prices, rolling_peak_window)
+    return drawdown < effective_threshold
+
+
 def _select_by_nav_score(
     strategy_entries: List[Dict],
     criteria: str,

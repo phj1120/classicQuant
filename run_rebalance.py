@@ -65,7 +65,8 @@ from app.analytics.audit_log import (
     log_strategy_error,
 )
 from app.data.fred_api import get_usdkrw_rate
-from app.strategy_selector import select_active_strategies
+from app.strategy_selector import is_strategy_mdd_excluded, select_active_strategies
+from app.analytics.selection_state import load_selection_state, save_selection_state
 from app.strategies import get_strategy
 from app.time_utils import trading_date_label
 
@@ -215,6 +216,59 @@ def _check_portfolio_mdd(selection_cfg: dict, today: str = "") -> tuple:
     )
     triggered = circuit_state == STATE_DEFENSIVE
     return triggered, current_dd, circuit_state
+
+
+def _select_or_reuse_active_strategies(
+    strategy_entries: list,
+    strategies_map: dict,
+    scores_by_strategy: dict,
+    selection_cfg: dict,
+    today: str,
+) -> list:
+    """selection.rebalance_frequency에 따라 매일 재선택하거나 월 1회만 재선택한다.
+
+    일간 재선택은 sharpe_12m 랭킹 경계의 미세한 변동에도 조합이 바뀌어
+    회전 비용(왕복 ~1.5%/회)이 알파를 잠식한다. 월간 모드에서는 매월 첫
+    실행에서만 corr_constrained를 재계산하고, 월중에는 저장된 조합을
+    재사용한다. 단, 보유 전략이 MDD 필터에 걸리면 다음 정기 재선택을
+    기다리지 않고 즉시 전체 재선택을 트리거한다(탈출 조건).
+    """
+    frequency = selection_cfg.get("rebalance_frequency", "daily")
+    if frequency != "monthly":
+        return select_active_strategies(
+            strategy_entries=strategy_entries,
+            strategies=strategies_map,
+            scores_by_strategy=scores_by_strategy,
+            selection_cfg=selection_cfg,
+        )
+
+    current_month = today[:7]
+    state = load_selection_state()
+    stored = state.get("selected") if state.get("selected_month") == current_month else None
+
+    if stored:
+        mdd_threshold = selection_cfg.get("mdd_filter_threshold")
+        mdd_threshold_ratio = selection_cfg.get("mdd_threshold_ratio")
+        rolling_peak_window = int(selection_cfg.get("rolling_peak_window", 252))
+        excluded = [
+            e["name"] for e in stored
+            if e["name"] in strategies_map
+            and is_strategy_mdd_excluded(e["name"], mdd_threshold, mdd_threshold_ratio, rolling_peak_window)
+        ]
+        if not excluded:
+            print(f"\n📅 월간 선택 유지 ({current_month}): {', '.join(e['name'] for e in stored)}")
+            return stored
+        print(f"\n⚠️  월중 MDD 필터 탈락 감지 ({excluded}) → 정기 재선택을 기다리지 않고 즉시 재선택")
+
+    active_entries = select_active_strategies(
+        strategy_entries=strategy_entries,
+        strategies=strategies_map,
+        scores_by_strategy=scores_by_strategy,
+        selection_cfg=selection_cfg,
+    )
+    save_selection_state(current_month, today, active_entries)
+    print(f"\n📅 월간 재선택 완료 ({current_month}) — 다음 정기 재선택까지 유지")
+    return active_entries
 
 
 def _update_portfolio_nav_actual(
@@ -431,11 +485,12 @@ def main() -> None:
         for name, res in all_results.items()
     }
 
-    active_entries = select_active_strategies(
+    active_entries = _select_or_reuse_active_strategies(
         strategy_entries=[e for e in strategy_entries if e["name"] in all_results],
-        strategies=strategies_map,
+        strategies_map=strategies_map,
         scores_by_strategy=scores_by_strategy,
         selection_cfg=selection_cfg,
+        today=today,
     )
 
     # 서킷 브레이커: 포트폴리오 MDD 한도 초과 시 fallback 강제 적용
