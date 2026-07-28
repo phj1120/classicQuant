@@ -143,5 +143,7 @@ def load_selection_config(raw: Dict) -> Dict:
         "fallback_strategy": "permanent",
         "corr_threshold": 0.7,
         "corr_window": 63,
+        "circuit_hysteresis": 0.05,
+        "circuit_min_hold_days": 5,
     }
     return {**defaults, **raw.get("selection", {})}

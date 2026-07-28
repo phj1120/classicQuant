@@ -41,6 +41,20 @@ def max_drawdown(returns: List[float]) -> float:
     return mdd
 
 
+def rolling_drawdown(prices: List[float], window: int = 252) -> float:
+    """롤링 윈도우 피크 대비 현재 낙폭을 반환한다.
+
+    window일 내 최고가 기준으로 현재 NAV의 낙폭을 계산한다.
+    전체 기간 ATH 대신 최근 추세 이탈 여부를 측정하기 위해 사용한다.
+    (전략 선택의 MDD 필터와 포트폴리오 서킷 브레이커가 공용으로 쓴다.)
+    """
+    if not prices:
+        return 0.0
+    recent = prices[-window:] if len(prices) > window else prices
+    peak = max(recent)
+    return (prices[-1] / peak - 1.0) if peak > 0 else 0.0
+
+
 def annualized_sharpe(returns: List[float], trading_days: int = 252) -> float:
     """연환산 Sharpe ratio"""
     n = len(returns)

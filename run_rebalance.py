@@ -173,6 +173,7 @@ def _check_portfolio_mdd(selection_cfg: dict, today: str = "") -> tuple:
         STATE_DEFENSIVE, STATE_NORMAL, STATE_WARNING,
         update_circuit_state,
     )
+    from app.analytics.risk import rolling_drawdown
 
     mdd_limit = selection_cfg.get("portfolio_mdd_limit")
     if mdd_limit is None:
@@ -192,18 +193,25 @@ def _check_portfolio_mdd(selection_cfg: dict, today: str = "") -> tuple:
     if not navs:
         return False, 0.0, STATE_NORMAL
 
-    peak = max(navs)
-    current_dd = (navs[-1] / peak - 1.0) if peak > 1e-10 else 0.0
+    # rolling_peak_window 이내 최고점 대비 낙폭을 쓴다. 전체 기간 ATH를 쓰면
+    # 오래전 스파이크(혹은 데이터 오염으로 생긴 일시적 고점)가 계속 peak로
+    # 남아 실제로는 회복된 상태인데도 낙폭이 과대평가된다.
+    rolling_peak_window = int(selection_cfg.get("rolling_peak_window", 252))
+    current_dd = rolling_drawdown(navs, rolling_peak_window)
 
     # 3-state 서킷 브레이커: warning = mdd_limit/2, defensive = mdd_limit
     warning_threshold = mdd_limit / 2.0
     defensive_threshold = mdd_limit
+    hysteresis = float(selection_cfg.get("circuit_hysteresis", 0.05))
+    min_hold_days = int(selection_cfg.get("circuit_min_hold_days", 5))
     circuit_state = update_circuit_state(
         current_dd=current_dd,
         date=today,
         warning_threshold=warning_threshold,
         defensive_threshold=defensive_threshold,
-        hysteresis=0.03,
+        hysteresis=hysteresis,
+        min_hold_days=min_hold_days,
+        history=history,
     )
     triggered = circuit_state == STATE_DEFENSIVE
     return triggered, current_dd, circuit_state

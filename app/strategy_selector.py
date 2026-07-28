@@ -15,6 +15,7 @@ criteria 종류:
 import math
 from typing import Dict, List, Optional, Tuple
 
+from app.analytics.risk import rolling_drawdown as _rolling_drawdown
 from app.constants import LOOKBACK_DAYS
 from app.strategy import BaseStrategy
 
@@ -127,19 +128,6 @@ def select_active_strategies(
         {"name": name, "weight": slot_weight}
         for name, _ in candidates
     ]
-
-
-def _rolling_drawdown(prices: List[float], window: int = 252) -> float:
-    """롤링 윈도우 피크 대비 현재 낙폭을 반환한다.
-
-    window일 내 최고가 기준으로 현재 NAV의 낙폭을 계산한다.
-    전체 기간 ATH 대신 최근 추세 이탈 여부를 측정하기 위해 사용한다.
-    """
-    if not prices:
-        return 0.0
-    recent = prices[-window:] if len(prices) > window else prices
-    peak = max(recent)
-    return (prices[-1] / peak - 1.0) if peak > 0 else 0.0
 
 
 def _historical_mdd(prices: List[float]) -> float:
