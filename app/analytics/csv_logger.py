@@ -214,6 +214,19 @@ def save_holdings(
         )
 
 
+def load_holdings() -> List[Dict]:
+    """holdings.csv를 행 단위로 로드한다 (날짜별 보유 스냅샷, 주문 전 시점 기준)."""
+    if not HOLDINGS_CSV.exists():
+        return []
+    rows = []
+    with open(HOLDINGS_CSV, "r", newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            row["date"] = _normalize_date(row.get("date", ""))
+            rows.append(row)
+    return sorted(rows, key=lambda r: (r.get("date", ""), r.get("ticker", "")))
+
+
 def save_momentum(
     date: str,
     strategy_name: str,
