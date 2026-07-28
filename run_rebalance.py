@@ -1,12 +1,15 @@
 import argparse
+import json
 import sys
 from pathlib import Path
+from typing import Optional
 
 # PYTHONPATH 없이도 app 모듈을 찾을 수 있도록 설정
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from app.config import (
     build_kis_config,
+    build_nav_config,
     build_strategy_config,
     load_config,
     load_key,
@@ -15,6 +18,7 @@ from app.config import (
 )
 from app.assets.assets import merge_assets, reload_assets
 from app.analytics.csv_logger import (
+    load_cash_flows,
     load_ohlc_prices,
     load_portfolio_nav_actual,
     load_portfolio_state,
@@ -53,7 +57,13 @@ from app.indicators.momentum import get_momentum_scores
 from app.assets.assets import group_tickers
 from app.execution.portfolio import build_group_orders, execute_orders, get_holdings_all_exchanges, get_prices
 from app.analytics.report import write_report
-from app.analytics.audit_log import log_circuit_breaker, log_order_execute, log_rebalance_skip
+from app.analytics.audit_log import (
+    log_circuit_breaker,
+    log_nav_rejected,
+    log_order_execute,
+    log_rebalance_skip,
+    log_strategy_error,
+)
 from app.data.fred_api import get_usdkrw_rate
 from app.strategy_selector import select_active_strategies
 from app.strategies import get_strategy
@@ -83,7 +93,8 @@ class CachedMarketDataAPI:
             for date, price in sorted(series.items())
         ]
 
-    def get_current_price(self, ticker: str):
+    def get_current_price(self, ticker: str, silent: bool = False):
+        del silent
         series = self.price_history.get(ticker, {})
         if not series:
             return None
@@ -198,12 +209,27 @@ def _check_portfolio_mdd(selection_cfg: dict, today: str = "") -> tuple:
     return triggered, current_dd, circuit_state
 
 
-def _update_portfolio_nav_actual(today: str, total_equity: float, cash: float) -> None:
+def _update_portfolio_nav_actual(
+    today: str,
+    total_equity: float,
+    cash: float,
+    nav_cfg: Optional[dict] = None,
+) -> bool:
     """실제 총자산 기준으로 portfolio_nav_actual.csv를 업데이트한다.
 
     과거 파일에 total_equity 컬럼이 없는 경우, 첫 actual snapshot은 기존 NAV를
     handoff 기준으로 이어받고 daily_return은 0으로 둔다.
+
+    입출금(cash_flows.csv)만큼 total_equity에서 제외해 수익률을 계산하고,
+    보정 후에도 |수익률|이 sanity_max_daily_return을 넘으면 기록을 거부한다
+    (오염된 잔고 조회값이 그대로 NAV·서킷 브레이커 판단에 흘러들지 않도록 하는 게이트).
+
+    Returns:
+        NAV를 기록했으면 True, sanity gate에 걸려 거부했으면 False.
     """
+    nav_cfg = nav_cfg or {}
+    sanity_max = float(nav_cfg.get("sanity_max_daily_return", 0.10))
+
     history = load_portfolio_nav_actual()
     state_history = load_portfolio_state()
     if history:
@@ -233,17 +259,52 @@ def _update_portfolio_nav_actual(today: str, total_equity: float, cash: float) -
             except (ValueError, TypeError):
                 prev_total_equity = None
 
+    cash_flow_today = load_cash_flows().get(today, 0.0)
+    adjusted_equity = total_equity - cash_flow_today
+
     if prev_total_equity and prev_total_equity > 1e-10:
-        portfolio_dr = (total_equity / prev_total_equity) - 1.0
+        portfolio_dr = (adjusted_equity / prev_total_equity) - 1.0
         new_nav = last_nav * (1.0 + portfolio_dr)
     else:
         portfolio_dr = 0.0
         new_nav = last_nav
 
+    if abs(portfolio_dr) > sanity_max:
+        print(
+            f"⛔ NAV sanity gate: 일간 수익률 {portfolio_dr:.2%}이 허용치 "
+            f"±{sanity_max:.0%}를 초과해 NAV 기록을 거부합니다. "
+            f"(total_equity=${total_equity:.2f}, prev=${prev_total_equity or 0:.2f}, "
+            f"cash_flow=${cash_flow_today:.2f})"
+        )
+        log_nav_rejected(today, portfolio_dr, sanity_max, total_equity, prev_total_equity or 0.0)
+        return False
+
     fx_rate = get_usdkrw_rate(today)
     krw_nav = new_nav * fx_rate if fx_rate is not None else None
     save_portfolio_nav_actual(today, new_nav, portfolio_dr, total_equity, fx_rate=fx_rate, krw_nav=krw_nav)
     save_portfolio_state(today, total_equity, cash)
+    return True
+
+
+_LAST_RUN_MARKER_PATH = Path(__file__).resolve().parent / "data" / "last_run_marker.json"
+
+
+def _has_orders_submitted_marker(today: str) -> bool:
+    if not _LAST_RUN_MARKER_PATH.exists():
+        return False
+    try:
+        marker = json.loads(_LAST_RUN_MARKER_PATH.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return False
+    return marker.get("date") == today and marker.get("phase") == "orders_submitted"
+
+
+def _save_orders_submitted_marker(today: str) -> None:
+    _LAST_RUN_MARKER_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _LAST_RUN_MARKER_PATH.write_text(
+        json.dumps({"date": today, "phase": "orders_submitted"}, ensure_ascii=False),
+        encoding="utf-8",
+    )
 
 
 def main() -> None:
@@ -302,7 +363,16 @@ def main() -> None:
     print(f"📈 보유 평가액: ${holding_value:.2f}")
     print(f"🧮 총 자산(추정): ${total_equity:.2f}")
 
-    # 포트폴리오 MDD 서킷 브레이커 체크 (3-state)
+    # 포트폴리오 NAV 업데이트 — 주문 실행 "전" 스냅샷을 기준으로 기록한다.
+    # 주문 직후에는 체결 전이라 현금·잔고가 일시적으로 어긋나 NAV가 오염되므로,
+    # 매일 같은 측정점(주문 영향 없음)을 쓰는 편이 더 일관적이고 안전하다.
+    if offline_report_only:
+        print("ℹ️  offline report-only 모드에서는 actual NAV/portfolio snapshot을 갱신하지 않습니다.")
+    else:
+        nav_cfg = build_nav_config(raw)
+        _update_portfolio_nav_actual(today, total_equity, cash, nav_cfg=nav_cfg)
+
+    # 포트폴리오 MDD 서킷 브레이커 체크 (3-state) — 방금 기록한 오늘 NAV를 포함해 판정한다.
     circuit_triggered, portfolio_dd, circuit_state = _check_portfolio_mdd(selection_cfg, today)
     mdd_limit = selection_cfg.get("portfolio_mdd_limit")
     if mdd_limit is not None:
@@ -330,6 +400,14 @@ def main() -> None:
             asset_files.append(strategy.assets)
         except Exception as e:
             print(f"❌ {entry['name']} 전략 실패: {e}")
+            log_strategy_error(entry["name"], today, str(e))
+
+    failed_count = len(strategy_entries) - len(all_results)
+    if strategy_entries and failed_count > len(strategy_entries) / 2:
+        raise RuntimeError(
+            f"⛔ 전략 {failed_count}/{len(strategy_entries)}개가 실패했습니다. "
+            f"선택·리밸런싱을 절반 미만 데이터로 진행하는 대신 중단합니다."
+        )
 
     # Phase 2: 전략 선택 (selection 기준 적용)
     print(f"\n{'='*50}")
@@ -436,6 +514,13 @@ def main() -> None:
         print("\n📋 리포트 전용 모드: 매매 실행 생략")
         log_rebalance_skip("portfolio", today, "report_only mode")
         execution_summary = {"sells": [], "buys": [], "failed": [], "succeeded": []}
+    elif _has_orders_submitted_marker(today):
+        # GitHub Actions가 실패 후 같은 날 최대 5회 재시도한다. 이전 시도에서 이미
+        # 주문을 전송했다면, 재시도로 같은 주문을 또 전송해 중복 매매가 나지 않도록
+        # 여기서 멈춘다. NAV/서킷 브레이커는 이미 주문 전 스냅샷으로 기록됐으므로 안전하다.
+        print("\n⏭️  오늘 이미 주문을 전송한 기록이 있어 매매를 스킵합니다 (재시도 안전장치).")
+        log_rebalance_skip("portfolio", today, "orders already submitted earlier today")
+        execution_summary = {"sells": [], "buys": [], "failed": [], "succeeded": []}
     else:
         # 이전 실패 주문 재시도
         retryable, exhausted = pop_retryable_orders()
@@ -455,6 +540,7 @@ def main() -> None:
             )
             print(f"⚠️  재시도 초과 주문 리포트: {report_path_failed}")
 
+        _save_orders_submitted_marker(today)
         execution_summary = execute_orders(api, all_orders, holdings_detail)
         for order in execution_summary.get("succeeded", []):
             log_order_execute(
@@ -467,6 +553,9 @@ def main() -> None:
             )
         if execution_summary["failed"]:
             enqueue_failed_orders(execution_summary["failed"], all_orders)
+
+        # 참고용 사후 스냅샷 — 체결 확인 없이 즉시 조회하므로 미체결 상태가 섞여
+        # 있을 수 있다. NAV/portfolio_state 기록에는 쓰지 않고 출력에만 사용한다.
         refreshed_holdings = get_holdings_all_exchanges(api)
         refreshed_cash = api.get_account_cash() or 0.0
         refreshed_prices = {t: info.get("price") for t, info in refreshed_holdings.items() if info.get("price")}
@@ -476,22 +565,13 @@ def main() -> None:
         )
         refreshed_total_equity = refreshed_cash + refreshed_holding_value
 
-        print("\n📌 주문 후 계정 스냅샷")
+        print("\n📌 주문 후 계정 스냅샷 (참고용 — 미체결 반영 전일 수 있음)")
         print(f"  현금: ${refreshed_cash:.2f}")
         print(f"  보유 평가액: ${refreshed_holding_value:.2f}")
         print(f"  총 자산(추정): ${refreshed_total_equity:.2f}")
         if execution_summary["failed"]:
             print("  ⚠️  일부 주문이 실패했습니다. 잔고와 체결 상태를 점검하세요.")
         set_exchange_default(api)
-
-    # 포트폴리오 NAV 업데이트 (report_only 여부 무관)
-    nav_equity = total_equity if args.report_only else refreshed_total_equity
-    nav_cash = cash if args.report_only else refreshed_cash
-    if offline_report_only:
-        print("ℹ️  offline report-only 모드에서는 actual NAV/portfolio snapshot을 갱신하지 않습니다.")
-        return
-
-    _update_portfolio_nav_actual(today, nav_equity, nav_cash)
 
 
 if __name__ == "__main__":

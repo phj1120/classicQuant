@@ -30,6 +30,9 @@
     "cash_buffer_pct": 0.03,
     "min_trade_value_usd": 20.0
   },
+  "nav": {
+    "sanity_max_daily_return": 0.10
+  },
   "costs": {
     "kis_commission_rate": 0.0025,
     "fx_spread_rate": 0.005,

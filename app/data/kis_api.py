@@ -312,15 +312,27 @@ class KoreaInvestmentAPI:
         print(f"❌ 잔고 조회 실패: {data.get('msg1', 'Unknown error')}")
         return None
 
+    # inquire-psamount는 TR 특성상 조회 종목/단가를 반드시 요구하지만,
+    # 이 조회는 예수금(frcr_dncl_amt1) 확인용이라 실제 매매와 무관한 더미 값을 사용한다.
+    _CASH_QUERY_DUMMY_EXCHANGE = "NASD"
+    _CASH_QUERY_DUMMY_TICKER = "AAPL"
+    _CASH_QUERY_DUMMY_PRICE = "200"
+
     def get_account_cash(self) -> Optional[float]:
+        """해외 외화예수금을 반환한다.
+
+        inquire-psamount의 ovrs_ord_psbl_amt(주문가능금액)는 미체결 주문의 증거금이
+        즉시 차감되어 NAV 계산에 쓰면 톱니파를 만든다. frcr_dncl_amt1(외화예수금)은
+        결제 기준 실제 보유 현금이라 이 값을 사용한다.
+        """
         url = f"{self.base_url}/uapi/overseas-stock/v1/trading/inquire-psamount"
         headers = self._get_headers("TTTS3007R")
         params = {
             "CANO": self.account_number,
             "ACNT_PRDT_CD": self.account_code,
-            "OVRS_EXCG_CD": "NASD",
-            "OVRS_ORD_UNPR": "200",
-            "ITEM_CD": "AAPL",
+            "OVRS_EXCG_CD": self._CASH_QUERY_DUMMY_EXCHANGE,
+            "OVRS_ORD_UNPR": self._CASH_QUERY_DUMMY_PRICE,
+            "ITEM_CD": self._CASH_QUERY_DUMMY_TICKER,
         }
 
         data = self._request_json(
@@ -334,9 +346,29 @@ class KoreaInvestmentAPI:
             return None
         if data["rt_cd"] == "0":
             output = data.get("output", {})
-            return float(output.get("ovrs_ord_psbl_amt", "0"))
+            return float(output.get("frcr_dncl_amt1", "0") or "0")
         print(f"❌ 예수금 조회 실패: {data.get('msg1', 'Unknown error')}")
         return None
+
+    def get_account_summary(self) -> Optional[Dict[str, float]]:
+        """inquire-balance(output2)의 총평가 요약을 파싱해 교차검증용으로 반환한다.
+
+        get_balance()가 이미 output2를 조회해 왔지만 지금까지 아무도 쓰지 않았다.
+        cash(frcr_dncl_amt1) + holding_value 합계와 비교해 괴리를 감지하는 데 쓴다.
+        """
+        balance = self.get_balance()
+        if not balance:
+            return None
+        total = balance.get("total") or {}
+        if not total:
+            return None
+        try:
+            return {
+                "total_evlu_amt": float(total.get("tot_evlu_pfls_amt", "0") or "0"),
+                "frcr_evlu_amt": float(total.get("frcr_evlu_tota", "0") or "0"),
+            }
+        except (ValueError, TypeError):
+            return None
 
     def get_historical_data(
         self,

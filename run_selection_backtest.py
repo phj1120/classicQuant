@@ -1026,8 +1026,8 @@ def _generate_portfolio_nav(nav_data: Dict) -> None:
             dr = (nav / prev_nav - 1.0) if i > 0 and prev_nav > 1e-10 else 0.0
             prev_net_nav_val = prev_net_nav
             net_nav = prev_net_nav * (1.0 + dr)
-            is_month_end = date[8:] in ("28", "29", "30", "31")
-            if is_month_end:
+            is_new_month = i > 0 and date[:7] != results[i - 1][0][:7]
+            if is_new_month:
                 net_nav = apply_cost(net_nav, monthly_turnover, roundtrip_rate)
             net_dr = (net_nav / prev_net_nav_val - 1.0) if i > 0 and prev_net_nav_val > 1e-10 else 0.0
             writer.writerow([date, f"{nav:.6f}", f"{dr:.6f}", f"{net_nav:.6f}", f"{net_dr:.6f}"])
@@ -1041,7 +1041,7 @@ def _generate_portfolio_nav(nav_data: Dict) -> None:
     for i, (date, nav) in enumerate(results):
         dr = (nav / results[i-1][1] - 1.0) if i > 0 else 0.0
         net_nav = prev_net * (1.0 + dr)
-        if date[8:] in ("28", "29", "30", "31"):
+        if i > 0 and date[:7] != results[i - 1][0][:7]:
             net_nav = apply_cost(net_nav, monthly_turnover, roundtrip_rate)
         net_results.append((date, net_nav))
         prev_net = net_nav

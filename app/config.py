@@ -125,6 +125,14 @@ def build_cost_config(raw: Dict) -> Dict:
     return {**defaults, **raw.get("costs", {})}
 
 
+def build_nav_config(raw: Dict) -> Dict:
+    """config.json의 nav 섹션을 로드한다."""
+    defaults = {
+        "sanity_max_daily_return": 0.10,
+    }
+    return {**defaults, **raw.get("nav", {})}
+
+
 def load_selection_config(raw: Dict) -> Dict:
     """config.json의 selection 섹션을 로드한다."""
     defaults = {

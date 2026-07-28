@@ -28,6 +28,7 @@ OHLC_CSV = DATA_DIR / "ohlc_history.csv"
 STRATEGY_SIGNALS_CSV = DATA_DIR / "strategy_signals.csv"
 STRATEGY_NAV_CSV = DATA_DIR / "strategy_nav.csv"
 PORTFOLIO_NAV_LEGACY_CSV = DATA_DIR / "portfolio_nav.csv"
+CASH_FLOWS_CSV = DATA_DIR / "cash_flows.csv"
 
 HOLDINGS_HEADER = ["date", "ticker", "group", "qty", "price", "value", "exchange"]
 MOMENTUM_HEADER = ["date", "strategy", "group", "score", "r1m", "r3m", "r6m", "r12m"]
@@ -38,6 +39,7 @@ STRATEGY_SIGNALS_HEADER = ["date", "strategy", "mode", "selected_assets", "top_s
 STRATEGY_NAV_HEADER = ["date", "strategy", "daily_return", "nav", "net_nav", "net_daily_return"]
 PORTFOLIO_NAV_MODEL_HEADER = ["date", "nav", "daily_return", "net_nav", "net_daily_return"]
 PORTFOLIO_NAV_ACTUAL_HEADER = ["date", "nav", "daily_return", "total_equity", "fx_rate", "krw_nav"]
+CASH_FLOWS_HEADER = ["date", "amount_usd", "memo"]
 
 
 def _ensure_dir() -> None:
@@ -67,8 +69,23 @@ def _existing_dates_in_csv(
 
 
 def _append_rows(path: Path, header: List[str], rows: List[List]) -> None:
+    """헤더를 확인하고 행을 append 한다.
+
+    파일이 이미 존재하면 첫 줄이 기대 헤더와 일치해야 한다. 조용히 넘어가면
+    헤더는 구버전(N열)인데 데이터 행은 신버전(M열)으로 쌓이는 스키마 불일치가
+    생기고, DictReader로 읽을 때 초과 컬럼이 통째로 유실된다. 실패시켜 즉시 드러낸다.
+    """
     _ensure_dir()
     write_header = not path.exists() or path.stat().st_size == 0
+    if not write_header:
+        with open(path, "r", newline="", encoding="utf-8") as f:
+            existing_header = next(csv.reader(f), None)
+        if existing_header is not None and existing_header != header:
+            raise RuntimeError(
+                f"{path.name}의 헤더가 코드 정의와 다릅니다. "
+                f"파일: {existing_header} / 코드: {header}. "
+                f"run_migrate_data.py로 헤더를 마이그레이션한 뒤 다시 실행하세요."
+            )
     with open(path, "a", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         if write_header:
@@ -172,6 +189,7 @@ def save_holdings(
     prices: Dict[str, float],
     group_for_ticker_fn,
 ) -> None:
+    date = _normalize_date(date)
     rows = []
     for ticker, info in sorted(holdings_detail.items()):
         qty = info.get("qty", 0)
@@ -202,6 +220,7 @@ def save_momentum(
     scores: Dict[str, Optional[float]],
     returns: Dict[str, Dict[str, Optional[float]]],
 ) -> None:
+    date = _normalize_date(date)
     rows = []
     for group in sorted(scores.keys()):
         score = scores[group]
@@ -242,6 +261,7 @@ def save_portfolio(
     merged_targets: Dict[str, float],
     selected_tickers: Dict[str, str],
 ) -> None:
+    date = _normalize_date(date)
     rows = []
     for data in strategy_results:
         strategy_name = data["name"]
@@ -276,6 +296,7 @@ def save_portfolio(
 
 
 def save_portfolio_state(date: str, total_equity: float, cash: float) -> None:
+    date = _normalize_date(date)
     _append_unique_rows(
         PORTFOLIO_STATE_CSV,
         PORTFOLIO_STATE_HEADER,
@@ -309,6 +330,7 @@ def save_strategy_signal(
     top_score: Optional[float],
 ) -> None:
     """전략 신호를 strategy_signals.csv에 기록한다."""
+    date = _normalize_date(date)
     assets_str = "|".join(f"{g}:{w:.4f}" for g, w in sorted(selected_assets.items()))
     row = [
         date,
@@ -572,3 +594,25 @@ def load_portfolio_nav_actual() -> List[Dict]:
             row["date"] = _normalize_date(row.get("date", ""))
             rows.append(row)
     return sorted(rows, key=lambda r: r.get("date", ""))
+
+
+def load_cash_flows() -> Dict[str, float]:
+    """cash_flows.csv에서 날짜별 입출금 합계를 로드한다 (수동 원장).
+
+    입금은 양수, 출금은 음수 amount_usd로 기입한다. NAV 수익률 계산 시
+    이 값만큼 total_equity에서 제외해 입출금을 손익으로 오인하지 않게 한다.
+    파일/날짜가 없으면 0으로 취급된다.
+    """
+    if not CASH_FLOWS_CSV.exists():
+        return {}
+    result: Dict[str, float] = {}
+    with open(CASH_FLOWS_CSV, "r", newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            date = _normalize_date(row.get("date", ""))
+            try:
+                amount = float(row.get("amount_usd", 0) or 0)
+            except (ValueError, TypeError):
+                continue
+            result[date] = result.get(date, 0.0) + amount
+    return result

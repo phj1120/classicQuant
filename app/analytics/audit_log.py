@@ -18,11 +18,13 @@ AUDIT_HEADER = ["timestamp", "event_type", "strategy", "detail", "git_rev", "con
 
 # 이벤트 유형
 EVENT_NAV_UPDATE = "NAV_UPDATE"
+EVENT_NAV_REJECTED = "NAV_REJECTED"
 EVENT_ORDER_EXECUTE = "ORDER_EXECUTE"
 EVENT_REBALANCE_SKIP = "REBALANCE_SKIP"
 EVENT_CIRCUIT_BREAKER = "CIRCUIT_BREAKER"
 EVENT_CONFIG_CHANGE = "CONFIG_CHANGE"
 EVENT_SIGNAL_COLLECT = "SIGNAL_COLLECT"
+EVENT_STRATEGY_ERROR = "STRATEGY_ERROR"
 
 
 def _git_rev() -> str:
@@ -90,6 +92,26 @@ def log_nav_update(
     if daily_return is not None:
         parts.append(f"daily_return={daily_return:.6f}")
     _append_event(EVENT_NAV_UPDATE, strategy, " | ".join(parts))
+
+
+def log_nav_rejected(
+    date: str,
+    daily_return: float,
+    threshold: float,
+    total_equity: float,
+    prev_total_equity: float,
+) -> None:
+    """sanity gate가 NAV 기록을 거부했음을 기록한다."""
+    detail = (
+        f"date={date} | daily_return={daily_return:.4f} | threshold={threshold:.4f} | "
+        f"total_equity={total_equity:.2f} | prev_total_equity={prev_total_equity:.2f}"
+    )
+    _append_event(EVENT_NAV_REJECTED, "portfolio", detail)
+
+
+def log_strategy_error(strategy: str, date: str, error: str) -> None:
+    """전략 실행 중 발생한 예외를 기록한다."""
+    _append_event(EVENT_STRATEGY_ERROR, strategy, f"date={date} | error={error}")
 
 
 def log_order_execute(

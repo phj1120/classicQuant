@@ -18,12 +18,16 @@ def compute_weighted_return(
 
     for group, weight in targets.items():
         group_return = 0.0
+        found_price = False
         for ticker in group_tickers(group):
             prev_price = price_dict.get(ticker, {}).get(prev_date)
             curr_price = price_dict.get(ticker, {}).get(curr_date)
             if prev_price and curr_price and prev_price > 0:
                 group_return = (curr_price / prev_price) - 1.0
+                found_price = True
                 break
+        if not found_price:
+            print(f"⚠️  {group} 가격 결측 ({prev_date}→{curr_date}): 0% 수익률로 처리")
         total_return += weight * group_return
 
     return total_return

@@ -32,7 +32,7 @@ from app.data.kis_api import KoreaInvestmentAPI
 from app.data.data_utils import parse_history
 from app.analytics.returns import compute_weighted_return
 from app.analytics.cost_model import apply_cost, ROUNDTRIP_COST_RATE, DEFAULT_MONTHLY_TURNOVER
-from app.analytics.audit_log import log_nav_update, log_signal_collect
+from app.analytics.audit_log import log_nav_update, log_signal_collect, log_strategy_error
 from app.indicators.momentum import get_momentum_scores
 from app.strategies import get_strategy
 from app.time_utils import trading_date_label
@@ -85,6 +85,23 @@ def _get_prev_nav(strategy_name: str) -> float:
         return float(series[-1]["nav"])
     except (KeyError, ValueError, TypeError):
         return 1.0
+
+
+def _is_new_month(strategy_name: str, today: str) -> bool:
+    """오늘이 마지막 기록된 NAV 행과 다른 달인지(=월 전환 시점인지) 확인한다.
+
+    이전엔 today[8:] in ("28","29","30","31")로 판정해 재실행/재시도 시
+    같은 달에 최대 4번 비용이 차감될 수 있었다. 월 전환 시점 1회만 차감되도록
+    직전 기록 날짜의 월과 비교한다.
+    """
+    nav_data = load_strategy_nav(strategy_name)
+    series = nav_data.get(strategy_name, [])
+    if not series:
+        return False
+    last_date = series[-1].get("date", "")
+    if not last_date:
+        return False
+    return last_date[:7] != today[:7]
 
 
 def _get_prev_net_nav(strategy_name: str) -> float:
@@ -170,8 +187,8 @@ def main() -> None:
             # net NAV: 월말에 DEFAULT_MONTHLY_TURNOVER 기준 거래 비용 차감
             prev_net_nav = _get_prev_net_nav(name)
             new_net_nav = prev_net_nav * (1.0 + daily_return)
-            is_month_end = today[8:] in ("28", "29", "30", "31")
-            if is_month_end:
+            is_new_month = _is_new_month(name, today)
+            if is_new_month:
                 new_net_nav = apply_cost(new_net_nav, DEFAULT_MONTHLY_TURNOVER, ROUNDTRIP_COST_RATE)
             net_daily_return = (new_net_nav / prev_net_nav - 1.0) if prev_net_nav > 1e-10 else daily_return
 
@@ -182,6 +199,7 @@ def main() -> None:
 
         except Exception as e:
             print(f"  ❌ {name} 처리 실패: {e}")
+            log_strategy_error(name, today, str(e))
 
     print(f"\n✅ 수집 완료: {today}")
 
