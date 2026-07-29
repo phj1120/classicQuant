@@ -1,8 +1,11 @@
 {
-  "state": "warning",
-  "current_dd": -0.119743,
-  "date": "2026-07-28",
+  "state": "defensive",
+  "current_dd": -0.268773,
+  "date": "2026-07-29",
+  "nav_date": "2026-07-29",
+  "entered_date": "2026-07-28",
   "warning_threshold": -0.09,
   "defensive_threshold": -0.18,
-  "hysteresis": 0.03
+  "hysteresis": 0.05,
+  "min_hold_days": 5
 }
