@@ -1,13 +1,13 @@
 {
-  "selected_month": "2026-08",
-  "selected_date": "2026-08-03",
+  "selected_month": "2026-09",
+  "selected_date": "2026-09-01",
   "selected": [
     {
       "name": "laa",
       "weight": 0.5
     },
     {
-      "name": "ivy",
+      "name": "gtaa",
       "weight": 0.5
     }
   ]
