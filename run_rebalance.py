@@ -461,7 +461,11 @@ def main() -> None:
         cash = 0.0
     else:
         holdings_detail = get_holdings_all_exchanges(api)
-        cash = api.get_account_cash() or 0.0
+        cash = api.get_account_cash()
+        if cash is None:
+            # 조회 실패를 현금 0으로 처리하면 총자산이 과소평가되어 매도 주문이 나간다.
+            # 워크플로 재시도에 맡기도록 실패로 종료한다.
+            raise RuntimeError("예수금 조회 실패: 현금을 확인할 수 없어 실행을 중단합니다.")
     balance_prices = {t: info.get("price") for t, info in holdings_detail.items() if info.get("price")}
     prices = dict(balance_prices)
 
