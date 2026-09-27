@@ -1,6 +1,7 @@
 import argparse
 import json
 import math
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -404,6 +405,19 @@ _LAST_RUN_MARKER_PATH = Path(__file__).resolve().parent / "data" / "last_run_mar
 _NAV_BASELINE_PATH = Path(__file__).resolve().parent / "data" / "nav_baseline.json"
 
 
+def _flag_trading_halt(reason: str) -> None:
+    """GitHub Actions 후속 단계가 워크플로를 실패 처리하도록 중단 사유를 넘긴다.
+
+    rebalance 단계 자체를 실패시키면 재시도 루프가 돌고 데이터 커밋도 건너뛰므로,
+    GITHUB_ENV로 사유만 전달하고 커밋 이후 단계에서 실패시킨다.
+    """
+    env_file = os.environ.get("GITHUB_ENV")
+    if not env_file:
+        return
+    with open(env_file, "a", encoding="utf-8") as f:
+        f.write(f"TRADING_HALTED={reason}\n")
+
+
 def _load_nav_reset_date() -> Optional[str]:
     if not _NAV_BASELINE_PATH.exists():
         return None
@@ -685,7 +699,13 @@ def main() -> None:
         save_portfolio(today, total_equity, cash, all_report_data, merged_targets, selected_tickers)
 
     # 리포트 생성
-    report_path = write_report(all_report_data, Path(__file__).resolve().parent / "reports")
+    report_alerts = []
+    if nav_rejected:
+        report_alerts.append(
+            f"NAV 기록 거부: 잔고 조회값(총자산 ${total_equity:.2f})을 신뢰할 수 없어 매매를 중단합니다. "
+            "data/audit_log.csv의 NAV_REJECTED를 확인하세요."
+        )
+    report_path = write_report(all_report_data, Path(__file__).resolve().parent / "reports", alerts=report_alerts)
     print(f"\n📝 리포트 저장: {report_path}")
 
     # 주문 실행
@@ -703,6 +723,7 @@ def main() -> None:
             "   data/audit_log.csv의 NAV_REJECTED 항목과 실제 계좌를 대조한 뒤 재실행하세요."
         )
         log_rebalance_skip("portfolio", today, "nav sanity gate rejected — untrusted balance snapshot")
+        _flag_trading_halt(f"{today} NAV sanity gate 거부로 매매 중단 (총자산 ${total_equity:.2f})")
         execution_summary = {"sells": [], "buys": [], "failed": [], "succeeded": []}
     elif _has_orders_submitted_marker(today):
         # GitHub Actions가 실패 후 같은 날 최대 5회 재시도한다. 이전 시도에서 이미

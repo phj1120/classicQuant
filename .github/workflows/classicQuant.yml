@@ -154,3 +154,9 @@ jobs:
           fi
           git commit -m "chore: report $(date -u +%Y-%m-%d)"
           git push origin "$DATA_BRANCH" --force-with-lease
+
+      - name: Fail on trading halt (main only)
+        if: env.IS_MAIN == 'true' && env.TRADING_HALTED != ''
+        run: |
+          echo "::error::매매 중단: $TRADING_HALTED"
+          exit 1

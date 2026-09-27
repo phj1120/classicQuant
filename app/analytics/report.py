@@ -82,10 +82,12 @@ def _build_risk_section(strategy_results: List[Dict], window: int = 252) -> List
 def write_report(
     strategy_results: List[Dict],
     out_dir: Path,
+    alerts: Optional[List[str]] = None,
 ) -> Path:
     """멀티 전략 리포트를 생성한다.
 
     strategy_results: [{"name", "weight", "scores", "targets", "selected_tickers"}, ...]
+    alerts: 제목 바로 아래 경고로 표시할 운영 이상 메시지
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     date_str = trading_date_label()
@@ -95,6 +97,8 @@ def write_report(
         f"{r['name'].upper()}({r['weight']*100:.0f}%)" for r in strategy_results
     )
     lines = [f"# {names} Daily Report ({date_str})"]
+    for alert in alerts or []:
+        lines.extend(["", f"> ⛔ **{alert}**"])
 
     for result in strategy_results:
         name = result["name"].upper()
