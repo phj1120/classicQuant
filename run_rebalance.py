@@ -9,6 +9,7 @@ from typing import Optional
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from app.config import (
+    build_cost_config,
     build_kis_config,
     build_nav_config,
     build_strategy_config,
@@ -663,14 +664,19 @@ def main() -> None:
 
         _save_orders_submitted_marker(today)
         execution_summary = execute_orders(api, all_orders, holdings_detail)
+        commission_rate = float(build_cost_config(raw).get("kis_commission_rate", 0.0))
         for order in execution_summary.get("succeeded", []):
+            order_price = float(order.get("price", 0))
+            order_value = float(order.get("est_value", 0)) or order_price * float(order.get("quantity", 0))
             log_order_execute(
                 strategy="portfolio",
                 date=today,
                 ticker=order.get("ticker", ""),
                 side=order.get("side", ""),
                 qty=float(order.get("quantity", 0)),
-                price=float(order.get("price", 0)),
+                price=order_price,
+                commission=order_value * commission_rate,
+                odno=order.get("odno", ""),
             )
         if execution_summary["failed"]:
             enqueue_failed_orders(execution_summary["failed"], all_orders)

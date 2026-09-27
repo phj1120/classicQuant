@@ -122,11 +122,17 @@ def log_order_execute(
     qty: float,
     price: float,
     commission: float = 0.0,
+    odno: str = "",
 ) -> None:
-    """주문 실행을 기록한다."""
+    """주문 실행을 기록한다.
+
+    price는 체결가가 아니라 제출한 지정가다(KIS 주문 API는 접수 결과만 반환).
+    실제 체결가 대조가 필요하면 odno(주문번호)로 체결내역을 조회한다.
+    """
     detail = (
         f"date={date} | ticker={ticker} | side={side} | "
-        f"qty={qty} | price={price:.2f} | commission={commission:.4f}"
+        f"qty={qty} | price={price:.2f} | value={qty * price:.2f} | "
+        f"commission={commission:.4f} | odno={odno}"
     )
     _append_event(EVENT_ORDER_EXECUTE, strategy, detail)
 

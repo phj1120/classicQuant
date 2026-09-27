@@ -255,6 +255,22 @@ def build_group_orders(
     return orders, selected_tickers
 
 
+def _order_trace(order: Dict, api: KoreaInvestmentAPI) -> Dict:
+    """사후 검증에 필요한 주문 추적 정보를 뽑는다.
+
+    KIS 주문 API는 접수 결과(주문번호)만 돌려주고 체결가는 주지 않으므로,
+    여기서 남기는 price는 체결가가 아니라 제출한 지정가다. 실제 체결가는
+    주문번호(odno)로 체결내역을 조회해야 확인할 수 있다.
+    """
+    response = (api.last_order_result or {}).get("response") or {}
+    output = response.get("output") or {}
+    return {
+        "price": order.get("price") or 0.0,
+        "est_value": order.get("est_value") or 0.0,
+        "odno": output.get("ODNO", ""),
+    }
+
+
 def execute_orders(api: KoreaInvestmentAPI, orders: List[Dict], holdings_detail: Dict[str, Dict]) -> Dict[str, List[Dict]]:
     if not orders:
         print("✅ 리밸런싱 필요 없음")
@@ -276,6 +292,7 @@ def execute_orders(api: KoreaInvestmentAPI, orders: List[Dict], holdings_detail:
             "quantity": order["quantity"],
             "success": success,
             "message": (api.last_order_result or {}).get("message", ""),
+            **_order_trace(order, api),
         }
         results["sells"].append(result)
         (results["succeeded"] if success else results["failed"]).append(result)
@@ -291,6 +308,7 @@ def execute_orders(api: KoreaInvestmentAPI, orders: List[Dict], holdings_detail:
             "quantity": order["quantity"],
             "success": success,
             "message": (api.last_order_result or {}).get("message", ""),
+            **_order_trace(order, api),
         }
         results["buys"].append(result)
         (results["succeeded"] if success else results["failed"]).append(result)
