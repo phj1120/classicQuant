@@ -34,7 +34,8 @@
     "min_trade_value_usd": 20.0
   },
   "nav": {
-    "sanity_max_daily_return": 0.10
+    "sanity_max_daily_return": 0.10,
+    "stale_baseline_max_days": 5
   },
   "costs": {
     "kis_commission_rate": 0.0025,

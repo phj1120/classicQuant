@@ -1,5 +1,6 @@
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Optional
@@ -36,7 +37,7 @@ from app.execution.order_queue import (
     pop_retryable_orders,
     write_failed_orders_report,
 )
-from datetime import datetime
+from datetime import datetime, timedelta
 
 try:
     from zoneinfo import ZoneInfo
@@ -271,6 +272,29 @@ def _select_or_reuse_active_strategies(
     return active_entries
 
 
+def _elapsed_trading_days(prev_date: Optional[str], today: str) -> int:
+    """기준일과 오늘 사이의 거래일 수를 센다(주말만 제외, 휴장일은 무시).
+
+    휴장일까지 반영하지 않는 이유는 이 값이 sanity gate 허용폭을 넓히는 데만
+    쓰여서, 과대 추정이 게이트를 느슨하게 만드는 방향으로만 작동하기 때문이다.
+    """
+    if not prev_date:
+        return 1
+    try:
+        start = datetime.strptime(prev_date, "%Y-%m-%d").date()
+        end = datetime.strptime(today, "%Y-%m-%d").date()
+    except ValueError:
+        return 1
+
+    days = 0
+    cursor = start
+    while cursor < end:
+        cursor += timedelta(days=1)
+        if cursor.weekday() < 5:
+            days += 1
+    return max(days, 1)
+
+
 def _update_portfolio_nav_actual(
     today: str,
     total_equity: float,
@@ -286,11 +310,17 @@ def _update_portfolio_nav_actual(
     보정 후에도 |수익률|이 sanity_max_daily_return을 넘으면 기록을 거부한다
     (오염된 잔고 조회값이 그대로 NAV·서킷 브레이커 판단에 흘러들지 않도록 하는 게이트).
 
+    거부 시에는 portfolio_state.csv도 갱신하지 않으므로 비교 기준(prev_total_equity)이
+    마지막 성공 시점에 고정된다. 따라서 허용치는 기준일로부터 경과한 일수만큼
+    sqrt 스케일로 넓혀 잡고, 기준이 stale_baseline_max_days를 넘게 낡으면
+    비교 자체를 신뢰할 수 없다고 보고 거부한다(수동 개입 필요).
+
     Returns:
         NAV를 기록했으면 True, sanity gate에 걸려 거부했으면 False.
     """
     nav_cfg = nav_cfg or {}
     sanity_max = float(nav_cfg.get("sanity_max_daily_return", 0.10))
+    stale_baseline_max_days = int(nav_cfg.get("stale_baseline_max_days", 5))
 
     history = load_portfolio_nav_actual()
     state_history = load_portfolio_state()
@@ -303,6 +333,7 @@ def _update_portfolio_nav_actual(
         last_nav = 1.0
 
     prev_total_equity = None
+    prev_date = None
     if state_history:
         prev_snapshot = None
         for row in state_history:
@@ -316,6 +347,7 @@ def _update_portfolio_nav_actual(
             prev_snapshot = state_history[0]
 
         if prev_snapshot is not None:
+            prev_date = prev_snapshot.get("date") or None
             try:
                 prev_total_equity = float(prev_snapshot.get("total_equity", ""))
             except (ValueError, TypeError):
@@ -331,14 +363,28 @@ def _update_portfolio_nav_actual(
         portfolio_dr = 0.0
         new_nav = last_nav
 
-    if abs(portfolio_dr) > sanity_max:
+    elapsed = _elapsed_trading_days(prev_date, today)
+    if elapsed > stale_baseline_max_days:
         print(
-            f"⛔ NAV sanity gate: 일간 수익률 {portfolio_dr:.2%}이 허용치 "
-            f"±{sanity_max:.0%}를 초과해 NAV 기록을 거부합니다. "
-            f"(total_equity=${total_equity:.2f}, prev=${prev_total_equity or 0:.2f}, "
-            f"cash_flow=${cash_flow_today:.2f})"
+            f"⛔ NAV sanity gate: 비교 기준({prev_date})이 {elapsed}거래일 전이라 "
+            f"허용치({stale_baseline_max_days}일) 이상으로 낡았습니다. "
+            f"잔고 조회값을 신뢰할 수 없으므로 NAV 기록을 거부합니다. "
+            f"data/portfolio_state.csv를 점검한 뒤 재실행하세요."
         )
         log_nav_rejected(today, portfolio_dr, sanity_max, total_equity, prev_total_equity or 0.0)
+        return False
+
+    # 기준일이 하루 이상 떨어져 있으면 그만큼 변동 폭도 커지므로 허용치를 sqrt로 넓힌다
+    effective_max = sanity_max * math.sqrt(elapsed)
+
+    if abs(portfolio_dr) > effective_max:
+        print(
+            f"⛔ NAV sanity gate: {elapsed}거래일 수익률 {portfolio_dr:.2%}이 허용치 "
+            f"±{effective_max:.1%}를 초과해 NAV 기록을 거부합니다. "
+            f"(total_equity=${total_equity:.2f}, prev=${prev_total_equity or 0:.2f} @ {prev_date}, "
+            f"cash_flow=${cash_flow_today:.2f})"
+        )
+        log_nav_rejected(today, portfolio_dr, effective_max, total_equity, prev_total_equity or 0.0)
         return False
 
     fx_rate = get_usdkrw_rate(today)
@@ -428,11 +474,12 @@ def main() -> None:
     # 포트폴리오 NAV 업데이트 — 주문 실행 "전" 스냅샷을 기준으로 기록한다.
     # 주문 직후에는 체결 전이라 현금·잔고가 일시적으로 어긋나 NAV가 오염되므로,
     # 매일 같은 측정점(주문 영향 없음)을 쓰는 편이 더 일관적이고 안전하다.
+    nav_rejected = False
     if offline_report_only:
         print("ℹ️  offline report-only 모드에서는 actual NAV/portfolio snapshot을 갱신하지 않습니다.")
     else:
         nav_cfg = build_nav_config(raw)
-        _update_portfolio_nav_actual(today, total_equity, cash, nav_cfg=nav_cfg)
+        nav_rejected = not _update_portfolio_nav_actual(today, total_equity, cash, nav_cfg=nav_cfg)
 
     # 포트폴리오 MDD 서킷 브레이커 체크 (3-state) — 방금 기록한 오늘 NAV를 포함해 판정한다.
     circuit_triggered, portfolio_dd, circuit_state = _check_portfolio_mdd(selection_cfg, today)
@@ -576,6 +623,17 @@ def main() -> None:
     if args.report_only:
         print("\n📋 리포트 전용 모드: 매매 실행 생략")
         log_rebalance_skip("portfolio", today, "report_only mode")
+        execution_summary = {"sells": [], "buys": [], "failed": [], "succeeded": []}
+    elif nav_rejected:
+        # NAV sanity gate가 걸렸다는 건 조회된 잔고·현금을 믿을 수 없다는 뜻이다.
+        # total_equity는 목표 비중을 금액으로 환산하는 기준이라, 과소평가된 값으로
+        # 주문을 내면 초과보유로 오판해 계속 매도하는 되먹임에 빠진다
+        # (2026-07-30~31 실제 사례). 신뢰할 수 없는 스냅샷으로는 매매하지 않는다.
+        print(
+            "\n⛔ NAV sanity gate 거부: 잔고 조회값을 신뢰할 수 없어 매매를 중단합니다.\n"
+            "   data/audit_log.csv의 NAV_REJECTED 항목과 실제 계좌를 대조한 뒤 재실행하세요."
+        )
+        log_rebalance_skip("portfolio", today, "nav sanity gate rejected — untrusted balance snapshot")
         execution_summary = {"sells": [], "buys": [], "failed": [], "succeeded": []}
     elif _has_orders_submitted_marker(today):
         # GitHub Actions가 실패 후 같은 날 최대 5회 재시도한다. 이전 시도에서 이미
