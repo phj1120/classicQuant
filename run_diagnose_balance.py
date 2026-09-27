@@ -31,7 +31,8 @@ from app.data.kis_api import KoreaInvestmentAPI
 KEY_PATH = Path(__file__).resolve().parent / "key.json"
 
 # 돈이 어디에 잡히는지 판단할 때 먼저 봐야 하는 필드들.
-# frcr_dncl_amt1: 현재 NAV 계산에 쓰는 값(외화예수금, 결제 기준)
+# ovrs_ord_psbl_amt: 현재 NAV 계산에 쓰는 값(주문가능금액)
+# frcr_dncl_amt1: 2026-07-29~ 사용했다가 0으로 조회돼 원복한 값(외화예수금)
 # frcr_pchs_amt / ovrs_rlzt_pfls_amt: 미결제 매도대금이 섞여 나올 수 있는 후보
 CASH_FIELDS_OF_INTEREST = (
     "frcr_dncl_amt1",
