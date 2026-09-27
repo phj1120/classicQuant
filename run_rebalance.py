@@ -61,6 +61,7 @@ from app.execution.portfolio import build_group_orders, execute_orders, get_hold
 from app.analytics.report import write_report
 from app.analytics.audit_log import (
     log_circuit_breaker,
+    log_nav_baseline_reset,
     log_nav_rejected,
     log_order_execute,
     log_rebalance_skip,
@@ -183,6 +184,10 @@ def _check_portfolio_mdd(selection_cfg: dict, today: str = "") -> tuple:
         return False, 0.0, STATE_NORMAL
 
     history = load_portfolio_nav_actual()
+    # 기준 재설정 이전 NAV는 오염·중단 구간이라 낙폭 판정에서 제외한다
+    reset_date = _load_nav_reset_date()
+    if reset_date:
+        history = [row for row in history if row.get("date", "") >= reset_date]
     if not history:
         return False, 0.0, STATE_NORMAL
 
@@ -396,6 +401,50 @@ def _update_portfolio_nav_actual(
 
 
 _LAST_RUN_MARKER_PATH = Path(__file__).resolve().parent / "data" / "last_run_marker.json"
+_NAV_BASELINE_PATH = Path(__file__).resolve().parent / "data" / "nav_baseline.json"
+
+
+def _load_nav_reset_date() -> Optional[str]:
+    if not _NAV_BASELINE_PATH.exists():
+        return None
+    try:
+        baseline = json.loads(_NAV_BASELINE_PATH.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    return baseline.get("reset_date") or None
+
+
+def _reset_nav_baseline(today: str, total_equity: float, cash: float) -> None:
+    """검증된 잔고를 새 NAV 비교 기준으로 기록하고 서킷 브레이커를 초기화한다.
+
+    NAV 값은 마지막 기록에서 이어가되(daily_return=0), 서킷 브레이커는 재설정일
+    이후 NAV만으로 낙폭을 계산하도록 reset_date를 남긴다.
+    """
+    from app.analytics.circuit_breaker import STATE_NORMAL, save_circuit_state
+
+    history = load_portfolio_nav_actual()
+    last_nav = float(history[-1]["nav"]) if history else 1.0
+    fx_rate = get_usdkrw_rate(today)
+    krw_nav = last_nav * fx_rate if fx_rate is not None else None
+
+    save_portfolio_nav_actual(today, last_nav, 0.0, total_equity, fx_rate=fx_rate, krw_nav=krw_nav)
+    save_portfolio_state(today, total_equity, cash)
+    _NAV_BASELINE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _NAV_BASELINE_PATH.write_text(
+        json.dumps(
+            {"reset_date": today, "total_equity": round(total_equity, 2), "cash": round(cash, 2)},
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    save_circuit_state({
+        "state": STATE_NORMAL,
+        "current_dd": 0.0,
+        "date": today,
+        "nav_date": today,
+        "entered_date": today,
+    })
+    log_nav_baseline_reset(today, total_equity, cash, last_nav)
 
 
 def _has_orders_submitted_marker(today: str) -> bool:
@@ -419,6 +468,11 @@ def _save_orders_submitted_marker(today: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="퀀트 자동 리밸런싱")
     parser.add_argument("--report-only", action="store_true", help="리포트만 생성 (매매 실행 안 함)")
+    parser.add_argument(
+        "--reset-nav-baseline",
+        action="store_true",
+        help="현재 잔고를 NAV 비교 기준으로 재설정하고 서킷 브레이커를 초기화 (매매 없음)",
+    )
     args = parser.parse_args()
 
     base_dir = Path(__file__).resolve().parent
@@ -444,7 +498,7 @@ def main() -> None:
         # 토큰 캐싱은 key 파일에 저장 (로컬 실행 시)
         api = KoreaInvestmentAPI(kis_config, config_file=str(key_path) if key_path.exists() else None)
 
-    if not args.report_only:
+    if not args.report_only and not args.reset_nav_baseline:
         if ZoneInfo is not None:
             now_et = datetime.now(ZoneInfo(US_MARKET_TZ))
             holiday = is_us_market_holiday(api, now_et)
@@ -475,6 +529,16 @@ def main() -> None:
     print(f"\n💵 현금: ${cash:.2f}")
     print(f"📈 보유 평가액: ${holding_value:.2f}")
     print(f"🧮 총 자산(추정): ${total_equity:.2f}")
+
+    if args.reset_nav_baseline:
+        if offline_report_only:
+            raise RuntimeError("NAV 기준 재설정에는 실제 잔고 조회가 필요합니다 (key.json 없음).")
+        if total_equity <= 0:
+            raise RuntimeError("총자산이 0 이하라 NAV 기준으로 쓸 수 없습니다. 잔고 조회를 먼저 점검하세요.")
+        _reset_nav_baseline(today, total_equity, cash)
+        print(f"🔁 NAV 비교 기준 재설정 완료: {today} (총자산 ${total_equity:.2f}), 서킷 브레이커 normal로 초기화")
+        print("   매매는 다음 정기 실행부터 재개됩니다.")
+        return
 
     # 포트폴리오 NAV 업데이트 — 주문 실행 "전" 스냅샷을 기준으로 기록한다.
     # 주문 직후에는 체결 전이라 현금·잔고가 일시적으로 어긋나 NAV가 오염되므로,

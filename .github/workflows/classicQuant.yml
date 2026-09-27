@@ -5,6 +5,11 @@ on:
     # 15:30 UTC daily (Mon-Fri)
     - cron: "30 15 * * 1-5"
   workflow_dispatch:
+    inputs:
+      reset_nav_baseline:
+        description: "현재 잔고를 NAV 비교 기준으로 재설정하고 서킷 브레이커 초기화 (매매 없음, main 전용)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -119,10 +124,14 @@ jobs:
           LOG_DIR="logs"
           mkdir -p "$LOG_DIR"
           LOG_FILE="$LOG_DIR/$(date -u +%Y%m%dT%H%M%SZ).log"
+          REBALANCE_ARGS=""
+          if [ "${{ inputs.reset_nav_baseline }}" = "true" ]; then
+            REBALANCE_ARGS="--reset-nav-baseline"
+          fi
           RETRY_DELAY=30
           for i in 1 2 3 4 5; do
             echo "Attempt $i/5"
-            if python run_rebalance.py | tee "$LOG_FILE"; then
+            if python run_rebalance.py $REBALANCE_ARGS | tee "$LOG_FILE"; then
               exit 0
             fi
             sleep $RETRY_DELAY

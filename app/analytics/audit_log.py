@@ -19,6 +19,7 @@ AUDIT_HEADER = ["timestamp", "event_type", "strategy", "detail", "git_rev", "con
 # 이벤트 유형
 EVENT_NAV_UPDATE = "NAV_UPDATE"
 EVENT_NAV_REJECTED = "NAV_REJECTED"
+EVENT_NAV_BASELINE_RESET = "NAV_BASELINE_RESET"
 EVENT_ORDER_EXECUTE = "ORDER_EXECUTE"
 EVENT_REBALANCE_SKIP = "REBALANCE_SKIP"
 EVENT_CIRCUIT_BREAKER = "CIRCUIT_BREAKER"
@@ -107,6 +108,14 @@ def log_nav_rejected(
         f"total_equity={total_equity:.2f} | prev_total_equity={prev_total_equity:.2f}"
     )
     _append_event(EVENT_NAV_REJECTED, "portfolio", detail)
+
+
+def log_nav_baseline_reset(date: str, total_equity: float, cash: float, last_nav: float) -> None:
+    """NAV 비교 기준 재설정(수동 개입)을 기록한다."""
+    detail = (
+        f"date={date} | total_equity={total_equity:.2f} | cash={cash:.2f} | nav={last_nav:.6f}"
+    )
+    _append_event(EVENT_NAV_BASELINE_RESET, "portfolio", detail)
 
 
 def log_strategy_error(strategy: str, date: str, error: str) -> None:
