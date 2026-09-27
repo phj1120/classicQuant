@@ -27,6 +27,11 @@ python run_rebalance.py --report-only
 
 # 리밸런싱 실행 (실제 매매 발생)
 python run_rebalance.py
+
+# NAV 비교 기준 재설정 (매매 없음) — NAV sanity gate 거부로 매매가 중단된 뒤,
+# 실계좌 잔고를 확인하고 나서 실행. 서킷 브레이커도 normal로 초기화된다.
+# Actions에서는 workflow_dispatch 입력 reset_nav_baseline=true로 실행
+python run_rebalance.py --reset-nav-baseline
 ```
 
 ### 백테스트
@@ -81,7 +86,8 @@ run_rebalance.py      → 전략 선택 → 포트폴리오 주문 생성 → KI
 
 **전략 선택** (`app/strategy_selector.py`)
 - `corr_constrained` (권장): sharpe_12m 랭킹 후 상관관계 0.7 이상 전략 제외하여 top_n 선택
-- 포트폴리오 MDD 서킷 브레이커: `data/portfolio_nav_actual.csv` 기준, 한계 초과 시 fallback_strategy로 강제 전환
+- 포트폴리오 MDD 서킷 브레이커: `data/portfolio_nav_actual.csv` 기준, 한계 초과 시 fallback_strategy로 강제 전환 (`data/nav_baseline.json`의 reset_date 이후 NAV만 사용)
+- NAV sanity gate: 잔고 급변(±10%) 또는 비교 기준이 5거래일 넘게 낡으면 NAV 기록을 거부하고 매매를 중단, 워크플로를 실패 처리
 
 **포트폴리오 실행** (`app/execution/portfolio.py`)
 - `build_group_orders()`: 목표 비중 → 매수/매도 주문 생성 (priority 1 티커 → 예산 부족 시 alternative chain으로 폴백)
