@@ -4911,3 +4911,36 @@ timestamp,event_type,strategy,detail,git_rev,config_hash
 2026-11-26T23:59:58Z,NAV_UPDATE,eaa,date=2026-11-26 | gross_nav=1.167510 | net_nav=1.154956 | daily_return=0.000000,b4435c8,20c5dd9d
 2026-11-27T00:00:12Z,SIGNAL_COLLECT,laa,date=2026-11-26 | mode=offensive | targets=QQQ:0.25|IWD:0.25|GLD:0.25|IEF:0.25,b4435c8,20c5dd9d
 2026-11-27T00:00:12Z,NAV_UPDATE,laa,date=2026-11-26 | gross_nav=3.513558 | net_nav=3.475773 | daily_return=0.000000,b4435c8,20c5dd9d
+2026-11-27T23:38:21Z,SIGNAL_COLLECT,daa,date=2026-11-27 | mode=defensive | targets=IEF:1.00,6db0712,20c5dd9d
+2026-11-27T23:38:22Z,NAV_UPDATE,daa,date=2026-11-27 | gross_nav=2.384523 | net_nav=2.358887 | daily_return=0.000000,6db0712,20c5dd9d
+2026-11-27T23:38:34Z,SIGNAL_COLLECT,vaa,date=2026-11-27 | mode=defensive | targets=IEF:1.00,6db0712,20c5dd9d
+2026-11-27T23:38:34Z,NAV_UPDATE,vaa,date=2026-11-27 | gross_nav=2.043194 | net_nav=2.021222 | daily_return=0.000000,6db0712,20c5dd9d
+2026-11-27T23:38:59Z,SIGNAL_COLLECT,paa,date=2026-11-27 | mode=defensive | targets=IEF:0.92|VNQ:0.08,6db0712,20c5dd9d
+2026-11-27T23:38:59Z,NAV_UPDATE,paa,date=2026-11-27 | gross_nav=1.837331 | net_nav=1.817579 | daily_return=0.000000,6db0712,20c5dd9d
+2026-11-27T23:39:23Z,SIGNAL_COLLECT,baa_g12,date=2026-11-27 | mode=defensive | targets=IEF:1.00,6db0712,20c5dd9d
+2026-11-27T23:39:23Z,NAV_UPDATE,baa_g12,date=2026-11-27 | gross_nav=1.731782 | net_nav=1.713167 | daily_return=0.000000,6db0712,20c5dd9d
+2026-11-27T23:39:35Z,SIGNAL_COLLECT,baa_g4,date=2026-11-27 | mode=defensive | targets=IEF:1.00,6db0712,20c5dd9d
+2026-11-27T23:39:36Z,NAV_UPDATE,baa_g4,date=2026-11-27 | gross_nav=2.045503 | net_nav=2.023512 | daily_return=0.000000,6db0712,20c5dd9d
+2026-11-27T23:39:41Z,SIGNAL_COLLECT,gem,date=2026-11-27 | mode=offensive | targets=EFA:1.00,6db0712,20c5dd9d
+2026-11-27T23:39:41Z,NAV_UPDATE,gem,date=2026-11-27 | gross_nav=2.983959 | net_nav=2.951869 | daily_return=0.000000,6db0712,20c5dd9d
+2026-11-27T23:39:53Z,SIGNAL_COLLECT,haa,date=2026-11-27 | mode=defensive | targets=IEF:1.00,6db0712,20c5dd9d
+2026-11-27T23:39:54Z,NAV_UPDATE,haa,date=2026-11-27 | gross_nav=2.069898 | net_nav=2.047640 | daily_return=0.000000,6db0712,20c5dd9d
+2026-11-27T23:40:01Z,SIGNAL_COLLECT,permanent,date=2026-11-27 | mode=offensive | targets=SPY:0.25|TLT:0.25|GLD:0.25|BIL:0.25,6db0712,20c5dd9d
+2026-11-27T23:40:01Z,NAV_UPDATE,permanent,date=2026-11-27 | gross_nav=2.412066 | net_nav=2.386121 | daily_return=0.000000,6db0712,20c5dd9d
+2026-11-27T23:40:10Z,SIGNAL_COLLECT,all_weather,date=2026-11-27 | mode=offensive | targets=SPY:0.30|TLT:0.40|IEF:0.15|GLD:0.07|DBC:0.07,6db0712,20c5dd9d
+2026-11-27T23:40:10Z,NAV_UPDATE,all_weather,date=2026-11-27 | gross_nav=2.216125 | net_nav=2.192290 | daily_return=0.000000,6db0712,20c5dd9d
+2026-11-27T23:40:19Z,SIGNAL_COLLECT,golden_butterfly,date=2026-11-27 | mode=offensive | targets=SPY:0.20|VBR:0.20|TLT:0.20|SHY:0.20|GLD:0.20,6db0712,20c5dd9d
+2026-11-27T23:40:19Z,NAV_UPDATE,golden_butterfly,date=2026-11-27 | gross_nav=2.697121 | net_nav=2.668116 | daily_return=0.000000,6db0712,20c5dd9d
+2026-11-27T23:40:31Z,SIGNAL_COLLECT,gtaa,date=2026-11-27 | mode=offensive | targets=SPY:0.50|VNQ:0.50,6db0712,20c5dd9d
+2026-11-27T23:40:31Z,NAV_UPDATE,gtaa,date=2026-11-27 | gross_nav=2.003414 | net_nav=1.981871 | daily_return=0.000000,6db0712,20c5dd9d
+2026-11-27T23:40:42Z,SIGNAL_COLLECT,ivy,date=2026-11-27 | mode=offensive | targets=VTI:0.50|VNQ:0.50,6db0712,20c5dd9d
+2026-11-27T23:40:42Z,NAV_UPDATE,ivy,date=2026-11-27 | gross_nav=1.967995 | net_nav=1.946833 | daily_return=0.000000,6db0712,20c5dd9d
+2026-11-27T23:40:54Z,SIGNAL_COLLECT,faa,date=2026-11-27 | mode=offensive | targets=AGG:0.33|VNQ:0.33|SHY:0.33,6db0712,20c5dd9d
+2026-11-27T23:40:55Z,NAV_UPDATE,faa,date=2026-11-27 | gross_nav=1.858122 | net_nav=1.838143 | daily_return=0.000000,6db0712,20c5dd9d
+2026-11-27T23:41:09Z,SIGNAL_COLLECT,eaa,date=2026-11-27 | mode=offensive | targets=VNQ:0.64|IEF:0.36,6db0712,20c5dd9d
+2026-11-27T23:41:09Z,NAV_UPDATE,eaa,date=2026-11-27 | gross_nav=1.167510 | net_nav=1.154956 | daily_return=0.000000,6db0712,20c5dd9d
+2026-11-27T23:41:20Z,SIGNAL_COLLECT,laa,date=2026-11-27 | mode=offensive | targets=QQQ:0.25|IWD:0.25|GLD:0.25|IEF:0.25,6db0712,20c5dd9d
+2026-11-27T23:41:21Z,NAV_UPDATE,laa,date=2026-11-27 | gross_nav=3.513558 | net_nav=3.475773 | daily_return=0.000000,6db0712,20c5dd9d
+2026-11-27T23:41:24Z,NAV_REJECTED,portfolio,date=2026-11-27 | daily_return=0.3397 | threshold=0.1000 | total_equity=1232.63 | prev_total_equity=920.07,6db0712,20c5dd9d
+2026-11-27T23:45:00Z,CIRCUIT_BREAKER,portfolio,date=2026-11-27 | state=defensive | current_dd=-0.2408 | threshold=-0.1800 | fallback=permanent,6db0712,20c5dd9d
+2026-11-27T23:45:00Z,REBALANCE_SKIP,portfolio,date=2026-11-27 | reason=nav sanity gate rejected — untrusted balance snapshot,6db0712,20c5dd9d
